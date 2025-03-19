@@ -25,7 +25,7 @@ const corsOptions = {
 }
 
 // Middleware
-app.use(cors(corsOptions)) // Ajout du middleware CORS
+app.use(cors(corsOptions))
 app.use(bodyParser())
 
 // Test route to check database connection
@@ -49,7 +49,7 @@ router.get("/", async (ctx) => {
 
 // Utilisation des routes
 app.use(router.routes()).use(router.allowedMethods()) // Routes de base
-app.use(apiRoutes.routes()).use(apiRoutes.allowedMethods()) // Routes API importées
+app.use(apiRoutes.routes()).use(apiRoutes.allowedMethods())
 
 // Synchronisation de la base de données et démarrage du serveur
 const startServer = async () => {
@@ -60,24 +60,24 @@ const startServer = async () => {
     // Synchroniser les modèles avec la base de données
     // En production, utilisez des migrations au lieu de sync
     await sequelize.sync({ alter: true })
-    console.log("Database synchronized")
+    console.log("✅ Database synchronized 🌐")
 
     // Exécuter les seeders en mode développement si SEED_ON_START est défini
     if (isDev && process.env.SEED_ON_START === "true") {
       try {
         await seedDatabase()
-        console.log("Database seeded successfully")
+        console.log("✅ Database seeded successfully 🌱")
       } catch (seedError) {
-        console.error("Error seeding database:", seedError)
+        console.error("❌ Error seeding database 😞😞😞 :", seedError)
       }
     }
 
     // Démarrer le serveur
     app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`)
+      console.log(`🎉🎉🎉 Server running on http://localhost:${PORT}`)
     })
   } catch (error) {
-    console.error("Failed to start server:", error)
+    console.error("❌ Failed to start server 😭😭😭:", error)
   }
 }
 
