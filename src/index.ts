@@ -2,7 +2,8 @@ import Koa from "koa"
 import bodyParser from "koa-bodyparser"
 import Router from "koa-router"
 import { sequelize, testConnection } from "./config/database"
-import apiRoutes from "./routes" // Importation des routes API
+import apiRoutes from "./routes"
+import { seedDatabase } from "./seeders" // Import du seeder
 import { DbErrorResponse, DbStatusResponse } from "./types/responses"
 
 require("dotenv").config()
@@ -10,6 +11,7 @@ require("dotenv").config()
 const app = new Koa()
 const router = new Router()
 const PORT = process.env.PORT || 3030
+const isDev = process.env.NODE_ENV === "development"
 
 // Middleware
 app.use(bodyParser())
@@ -47,6 +49,16 @@ const startServer = async () => {
     // En production, utilisez des migrations au lieu de sync
     await sequelize.sync({ alter: true })
     console.log("Database synchronized")
+
+    // Exécuter les seeders en mode développement si SEED_ON_START est défini
+    if (isDev && process.env.SEED_ON_START === "true") {
+      try {
+        await seedDatabase()
+        console.log("Database seeded successfully")
+      } catch (seedError) {
+        console.error("Error seeding database:", seedError)
+      }
+    }
 
     // Démarrer le serveur
     app.listen(PORT, () => {
