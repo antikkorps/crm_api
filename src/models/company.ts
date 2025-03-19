@@ -76,4 +76,4 @@ export const Company = sequelize.define(
   }
 )
 
-module.exports = Company
+export default Company

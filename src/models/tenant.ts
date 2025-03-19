@@ -33,4 +33,4 @@ export const Tenant = sequelize.define(
   }
 )
 
-module.exports = Tenant
+export default Tenant

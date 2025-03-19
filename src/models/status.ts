@@ -54,4 +54,4 @@ export const Status = sequelize.define(
   }
 )
 
-module.exports = Status
+export default Status

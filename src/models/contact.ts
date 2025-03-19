@@ -76,4 +76,4 @@ export const Contact = sequelize.define(
   }
 )
 
-module.exports = Contact
+export default Contact

@@ -60,4 +60,4 @@ export const Note = sequelize.define(
   }
 )
 
-module.exports = Note
+export default Note

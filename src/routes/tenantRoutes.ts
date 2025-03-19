@@ -76,4 +76,5 @@ router.delete("/:id", async (ctx) => {
   }
 })
 
-module.exports = router
+// Export the router as default export
+export default router

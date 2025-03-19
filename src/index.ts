@@ -2,6 +2,7 @@ import Koa from "koa"
 import bodyParser from "koa-bodyparser"
 import Router from "koa-router"
 import { sequelize, testConnection } from "./config/database"
+import apiRoutes from "./routes" // Importation des routes API
 import { DbErrorResponse, DbStatusResponse } from "./types/responses"
 
 require("dotenv").config()
@@ -12,11 +13,6 @@ const PORT = process.env.PORT || 3030
 
 // Middleware
 app.use(bodyParser())
-
-// Routes
-app.use(async (ctx) => {
-  ctx.body = "API is running"
-})
 
 // Test route to check database connection
 router.get("/db-status", async (ctx: Koa.Context): Promise<void> => {
@@ -32,8 +28,14 @@ router.get("/db-status", async (ctx: Koa.Context): Promise<void> => {
   }
 })
 
+// Route racine
+router.get("/", async (ctx) => {
+  ctx.body = "API is running"
+})
+
 // Utilisation des routes
-app.use(router.routes()).use(router.allowedMethods())
+app.use(router.routes()).use(router.allowedMethods()) // Routes de base
+app.use(apiRoutes.routes()).use(apiRoutes.allowedMethods()) // Routes API importées
 
 // Synchronisation de la base de données et démarrage du serveur
 const startServer = async () => {

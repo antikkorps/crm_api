@@ -46,4 +46,4 @@ export const Role = sequelize.define(
   }
 )
 
-module.exports = Role
+export default Role

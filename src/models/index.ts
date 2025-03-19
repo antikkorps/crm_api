@@ -1,55 +1,56 @@
 import { sequelize } from "../config/database"
-import { Company } from "./company"
-import { Contact } from "./contact"
-import { Note } from "./note"
-import { Role } from "./role"
-import { Status } from "./status"
-import { Tenant } from "./tenant"
-import { User } from "./user"
+// Importation des modèles avec leur export par défaut
+import CompanyModel, { Company } from "./company"
+import ContactModel, { Contact } from "./contact"
+import NoteModel, { Note } from "./note"
+import RoleModel, { Role } from "./role"
+import StatusModel, { Status } from "./status"
+import TenantModel, { Tenant } from "./tenant"
+import UserModel, { User } from "./user"
 
 // Relations Tenant
-Tenant.hasMany(User, { foreignKey: "tenantId" })
-Tenant.hasMany(Role, { foreignKey: "tenantId" })
-Tenant.hasMany(Status, { foreignKey: "tenantId" })
-Tenant.hasMany(Contact, { foreignKey: "tenantId" })
-Tenant.hasMany(Company, { foreignKey: "tenantId" })
-Tenant.hasMany(Note, { foreignKey: "tenantId" })
+TenantModel.hasMany(UserModel, { foreignKey: "tenantId" })
+TenantModel.hasMany(RoleModel, { foreignKey: "tenantId" })
+TenantModel.hasMany(StatusModel, { foreignKey: "tenantId" })
+TenantModel.hasMany(ContactModel, { foreignKey: "tenantId" })
+TenantModel.hasMany(CompanyModel, { foreignKey: "tenantId" })
+TenantModel.hasMany(NoteModel, { foreignKey: "tenantId" })
 
 // Relations User
-User.belongsTo(Tenant, { foreignKey: "tenantId" })
-User.belongsTo(Role, { foreignKey: "roleId" })
-User.hasMany(Contact, { foreignKey: "assignedToId" })
-User.hasMany(Company, { foreignKey: "assignedToId" })
-User.hasMany(Note, { foreignKey: "createdById" })
+UserModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
+UserModel.belongsTo(RoleModel, { foreignKey: "roleId" })
+UserModel.hasMany(ContactModel, { foreignKey: "assignedToId" })
+UserModel.hasMany(CompanyModel, { foreignKey: "assignedToId" })
+UserModel.hasMany(NoteModel, { foreignKey: "createdById" })
 
 // Relations Role
-Role.belongsTo(Tenant, { foreignKey: "tenantId" })
-Role.hasMany(User, { foreignKey: "roleId" })
+RoleModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
+RoleModel.hasMany(UserModel, { foreignKey: "roleId" })
 
 // Relations Status
-Status.belongsTo(Tenant, { foreignKey: "tenantId" })
-Status.hasMany(Contact, { foreignKey: "statusId" })
-Status.hasMany(Company, { foreignKey: "statusId" })
+StatusModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
+StatusModel.hasMany(ContactModel, { foreignKey: "statusId" })
+StatusModel.hasMany(CompanyModel, { foreignKey: "statusId" })
 
 // Relations Contact
-Contact.belongsTo(Tenant, { foreignKey: "tenantId" })
-Contact.belongsTo(Status, { foreignKey: "statusId" })
-Contact.belongsTo(Company, { as: "company", foreignKey: "companyId" })
-Contact.belongsTo(User, { as: "assignedTo", foreignKey: "assignedToId" })
-Contact.hasMany(Note, { foreignKey: "contactId" })
+ContactModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
+ContactModel.belongsTo(StatusModel, { foreignKey: "statusId" })
+ContactModel.belongsTo(CompanyModel, { as: "company", foreignKey: "companyId" })
+ContactModel.belongsTo(UserModel, { as: "assignedTo", foreignKey: "assignedToId" })
+ContactModel.hasMany(NoteModel, { foreignKey: "contactId" })
 
 // Relations Company
-Company.belongsTo(Tenant, { foreignKey: "tenantId" })
-Company.belongsTo(Status, { foreignKey: "statusId" })
-Company.belongsTo(User, { as: "assignedTo", foreignKey: "assignedToId" })
-Company.hasMany(Contact, { foreignKey: "companyId" })
-Company.hasMany(Note, { foreignKey: "companyId" })
+CompanyModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
+CompanyModel.belongsTo(StatusModel, { foreignKey: "statusId" })
+CompanyModel.belongsTo(UserModel, { as: "assignedTo", foreignKey: "assignedToId" })
+CompanyModel.hasMany(ContactModel, { foreignKey: "companyId" })
+CompanyModel.hasMany(NoteModel, { foreignKey: "companyId" })
 
 // Relations Note
-Note.belongsTo(Tenant, { foreignKey: "tenantId" })
-Note.belongsTo(Contact, { foreignKey: "contactId" })
-Note.belongsTo(Company, { foreignKey: "companyId" })
-Note.belongsTo(User, { as: "createdBy", foreignKey: "createdById" })
+NoteModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
+NoteModel.belongsTo(ContactModel, { foreignKey: "contactId" })
+NoteModel.belongsTo(CompanyModel, { foreignKey: "companyId" })
+NoteModel.belongsTo(UserModel, { as: "createdBy", foreignKey: "createdById" })
 
 // Export des modèles
 export { Company, Contact, Note, Role, sequelize, Status, Tenant, User }
