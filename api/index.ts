@@ -2,6 +2,7 @@
 // AJOUTER /api/index.ts en main dans le package.json et dans le script start
 // "start": "node api/index.ts"
 //
+import cors from "@koa/cors"
 import Koa from "koa"
 import bodyParser from "koa-bodyparser"
 import Router from "koa-router"
@@ -15,7 +16,18 @@ require("dotenv").config()
 const app = new Koa()
 const router = new Router()
 
+// Configuration des options CORS
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN || "*",
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  exposeHeaders: ['Content-Length', 'Date', 'X-Request-Id'],
+  maxAge: 86400,
+  credentials: true,
+}
+
 // Middleware
+app.use(cors(corsOptions))
 app.use(bodyParser())
 
 // Test route pour vérifier la connexion à la base de données

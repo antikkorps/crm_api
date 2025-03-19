@@ -1,9 +1,10 @@
+import cors from "@koa/cors"
 import Koa from "koa"
 import bodyParser from "koa-bodyparser"
 import Router from "koa-router"
 import { sequelize, testConnection } from "./config/database"
 import apiRoutes from "./routes"
-import { seedDatabase } from "./seeders" // Import du seeder
+import { seedDatabase } from "./seeders"
 import { DbErrorResponse, DbStatusResponse } from "./types/responses"
 
 require("dotenv").config()
@@ -13,7 +14,18 @@ const router = new Router()
 const PORT = process.env.PORT || 3030
 const isDev = process.env.NODE_ENV === "development"
 
+// Configuration des options CORS
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN || "*", // Accepte toutes les origines ou spécifie les origines autorisées
+  allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowHeaders: ["Content-Type", "Authorization", "Accept"],
+  exposeHeaders: ["Content-Length", "Date", "X-Request-Id"],
+  maxAge: 86400, // 24 heures en secondes
+  credentials: true, // Autorise l'envoi de cookies entre origines
+}
+
 // Middleware
+app.use(cors(corsOptions)) // Ajout du middleware CORS
 app.use(bodyParser())
 
 // Test route to check database connection
