@@ -1,5 +1,5 @@
 import { Context, Next } from "koa"
-import { Role } from "../models"
+import { Role, User } from "../models"
 
 /**
  * Type pour les permissions relatives à une ressource
@@ -34,6 +34,16 @@ export const checkPermission = (resource: string, action: keyof ResourcePermissi
         ctx.body = { error: "Authentication required" }
         return
       }
+
+      // Vérifier si l'utilisateur est super admin
+      const user = await User.findByPk(ctx.state.user.id)
+      if (user && user.get("isSuperAdmin") === true) {
+        // Les super admins ont toutes les permissions
+        await next()
+        return
+      }
+
+      // Pour les utilisateurs normaux, continuer avec la vérification des rôles
 
       // Récupérer le rôle de l'utilisateur
       const userRoleId = ctx.state.user.roleId
@@ -90,6 +100,47 @@ export const checkPermission = (resource: string, action: keyof ResourcePermissi
 }
 
 /**
+ * Middleware pour vérifier si l'utilisateur est un super admin
+ */
+export const isSuperAdmin = async (ctx: Context, next: Next) => {
+  try {
+    // Vérifier que l'utilisateur est authentifié
+    if (!ctx.state.user) {
+      ctx.status = 401
+      ctx.body = { error: "Authentication required" }
+      return
+    }
+
+    // Récupérer l'utilisateur
+    const user = await User.findByPk(ctx.state.user.id)
+
+    if (!user) {
+      ctx.status = 403
+      ctx.body = { error: "User not found" }
+      return
+    }
+
+    // Vérifier si c'est un super admin
+    if (user.get("isSuperAdmin") !== true) {
+      ctx.status = 403
+      ctx.body = {
+        error: "Super Administrator privileges required",
+      }
+      return
+    }
+
+    // Si l'utilisateur est super admin, passer au middleware suivant
+    await next()
+  } catch (error) {
+    ctx.status = 500
+    ctx.body = {
+      error: "Error checking super admin status",
+      details: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+/**
  * Middleware pour vérifier si l'utilisateur est un administrateur
  */
 export const isAdmin = async (ctx: Context, next: Next) => {
@@ -100,6 +151,23 @@ export const isAdmin = async (ctx: Context, next: Next) => {
       ctx.body = { error: "Authentication required" }
       return
     }
+
+    // Récupérer l'utilisateur
+    const user = await User.findByPk(ctx.state.user.id)
+
+    if (!user) {
+      ctx.status = 403
+      ctx.body = { error: "User not found" }
+      return
+    }
+
+    // Les super admins passent automatiquement
+    if (user.get("isSuperAdmin") === true) {
+      await next()
+      return
+    }
+
+    // Pour les autres, vérifier le rôle admin
 
     // Récupérer le rôle de l'utilisateur
     const userRoleId = ctx.state.user.roleId
@@ -168,6 +236,15 @@ export const checkSameTenant = async (ctx: Context, next: Next) => {
       await next()
       return
     }
+
+    // Vérifier si l'utilisateur est super admin (ils peuvent accéder à tous les tenants)
+    const user = await User.findByPk(ctx.state.user.id)
+    if (user && user.get("isSuperAdmin") === true) {
+      await next()
+      return
+    }
+
+    // Pour les utilisateurs normaux, continuer avec la vérification du tenant
 
     // Vérifier si l'utilisateur appartient au même tenant que la ressource
     if (userTenantId !== resourceTenantId) {

@@ -7,6 +7,7 @@ import noteRoutes from "./noteRoutes"
 import reminderRoutes from "./reminderRoutes"
 import roleRoutes from "./roleRoutes"
 import statusRoutes from "./statusRoutes"
+import superAdminRoutes from "./superAdminRoutes"
 import tenantRoutes from "./tenantRoutes"
 import userRoutes from "./userRoutes"
 
@@ -17,6 +18,9 @@ router.use(authRoutes.routes())
 
 // Application du middleware d'authentification à toutes les autres routes
 router.use(authMiddleware)
+
+// Routes Super Admin
+router.use(superAdminRoutes.routes())
 
 // Routes API protégées
 router.use(tenantRoutes.routes())

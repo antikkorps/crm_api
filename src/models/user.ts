@@ -30,6 +30,10 @@ export const User = sequelize.define(
       type: DataTypes.BOOLEAN,
       defaultValue: true,
     },
+    isSuperAdmin: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
     roleId: {
       type: DataTypes.UUID,
       allowNull: false,

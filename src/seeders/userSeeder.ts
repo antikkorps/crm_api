@@ -35,6 +35,7 @@ export const seedUsers = async (
       roleId: adminRoleId,
       tenantId,
       isActive: true,
+      isSuperAdmin: false,
     })
 
     // Créer l'utilisateur standard
