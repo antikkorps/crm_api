@@ -1,5 +1,5 @@
 import { Context } from "koa"
-import { Role, Tenant, User } from "../models"
+import { Company, Contact, Note, Reminder, Role, Tenant, User } from "../models"
 
 /**
  * Récupérer la liste de tous les tenants
@@ -19,11 +19,27 @@ export const getAllTenantsWithStats = async (ctx: Context) => {
         // Compter les rôles par tenant
         const roleCount = await Role.count({ where: { tenantId } })
 
+        // Compter les contacts par tenant
+        const contactCount = await Contact.count({ where: { tenantId } })
+
+        // compter les entreprises par tenant
+        const companyCount = await Company.count({ where: { tenantId } })
+
+        // compter les notes par tenant
+        const noteCount = await Note.count({ where: { tenantId } })
+
+        // compter les rappels par tenant
+        const reminderCount = await Reminder.count({ where: { tenantId } })
+
         return {
           ...tenant.toJSON(),
           stats: {
             userCount,
             roleCount,
+            contactCount,
+            companyCount,
+            noteCount,
+            reminderCount,
           },
         }
       })
