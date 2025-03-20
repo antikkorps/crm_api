@@ -38,6 +38,7 @@ export const seedRoles = async (tenantId: string) => {
         notes: { create: true, read: true, update: true, delete: true },
         reminders: { create: true, read: true, update: true, delete: true },
         tenant: { create: false, read: true, update: true, delete: false },
+        dashboard: { create: false, read: true, update: false, delete: false },
       },
       tenantId,
     })
@@ -53,6 +54,7 @@ export const seedRoles = async (tenantId: string) => {
         notes: { create: true, read: true, update: true, delete: true },
         reminders: { create: true, read: true, update: true, delete: true },
         tenant: { create: false, read: true, update: false, delete: false },
+        dashboard: { create: false, read: true, update: false, delete: false },
       },
       tenantId,
     })

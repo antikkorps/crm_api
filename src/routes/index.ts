@@ -1,5 +1,6 @@
 import Router from "koa-router"
 import { authMiddleware } from "../middlewares/authMiddleware"
+import analyticsRoutes from "./analyticsRoutes"
 import authRoutes from "./authRoutes"
 import companyRoutes from "./companyRoutes"
 import contactRoutes from "./contactRoutes"
@@ -31,5 +32,6 @@ router.use(roleRoutes.routes())
 router.use(statusRoutes.routes())
 router.use(noteRoutes.routes())
 router.use(reminderRoutes.routes())
+router.use(analyticsRoutes.routes())
 
 export default router
