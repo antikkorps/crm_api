@@ -1,10 +1,14 @@
 import { Context } from "koa"
 import { Company, Contact, Status } from "../models"
+import { paginatedQuery } from "../utils/pagination"
 
 export const getAllStatuses = async (ctx: Context) => {
   try {
-    const statuses = await Status.findAll()
-    ctx.body = statuses
+    const result = await paginatedQuery(Status, ctx, {
+      where: { tenantId: ctx.state.user.tenantId },
+    })
+
+    ctx.body = result
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
@@ -28,12 +32,13 @@ export const getStatusById = async (ctx: Context) => {
 
 export const getStatusesByTenant = async (ctx: Context) => {
   try {
-    const statuses = await Status.findAll({
+    const result = await paginatedQuery(Status, ctx, {
       where: {
         tenantId: ctx.params.tenantId,
       },
     })
-    ctx.body = statuses
+
+    ctx.body = result
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
@@ -42,13 +47,14 @@ export const getStatusesByTenant = async (ctx: Context) => {
 
 export const getStatusesByType = async (ctx: Context) => {
   try {
-    const statuses = await Status.findAll({
+    const result = await paginatedQuery(Status, ctx, {
       where: {
         type: ctx.params.type,
-        tenantId: ctx.query.tenantId,
+        tenantId: ctx.query.tenantId || ctx.state.user.tenantId,
       },
     })
-    ctx.body = statuses
+
+    ctx.body = result
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }

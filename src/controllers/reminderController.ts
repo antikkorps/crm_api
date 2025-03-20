@@ -1,9 +1,10 @@
 import { Context } from "koa"
 import { Company, Contact, Reminder, User } from "../models"
+import { paginatedQuery } from "../utils/pagination"
 
 export const getAllReminders = async (ctx: Context) => {
   try {
-    const reminders = await Reminder.findAll({
+    const result = await paginatedQuery(Reminder, ctx, {
       include: [
         { model: User, as: "createdBy" },
         { model: User, as: "assignedTo" },
@@ -11,8 +12,10 @@ export const getAllReminders = async (ctx: Context) => {
         { model: Company },
       ],
       order: [["dueDate", "ASC"]],
+      where: { tenantId: ctx.state.user.tenantId },
     })
-    ctx.body = reminders
+
+    ctx.body = result
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
@@ -43,14 +46,15 @@ export const getReminderById = async (ctx: Context) => {
 
 export const getRemindersByUser = async (ctx: Context) => {
   try {
-    const reminders = await Reminder.findAll({
+    const result = await paginatedQuery(Reminder, ctx, {
       where: {
         assignedToId: ctx.params.userId || ctx.state.user.id,
       },
       include: [{ model: User, as: "createdBy" }, { model: Contact }, { model: Company }],
       order: [["dueDate", "ASC"]],
     })
-    ctx.body = reminders
+
+    ctx.body = result
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
@@ -59,14 +63,15 @@ export const getRemindersByUser = async (ctx: Context) => {
 
 export const getCurrentUserReminders = async (ctx: Context) => {
   try {
-    const reminders = await Reminder.findAll({
+    const result = await paginatedQuery(Reminder, ctx, {
       where: {
         assignedToId: ctx.state.user.id,
       },
       include: [{ model: User, as: "createdBy" }, { model: Contact }, { model: Company }],
       order: [["dueDate", "ASC"]],
     })
-    ctx.body = reminders
+
+    ctx.body = result
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
@@ -75,7 +80,7 @@ export const getCurrentUserReminders = async (ctx: Context) => {
 
 export const getRemindersByContact = async (ctx: Context) => {
   try {
-    const reminders = await Reminder.findAll({
+    const result = await paginatedQuery(Reminder, ctx, {
       where: {
         contactId: ctx.params.contactId,
       },
@@ -85,7 +90,8 @@ export const getRemindersByContact = async (ctx: Context) => {
       ],
       order: [["dueDate", "ASC"]],
     })
-    ctx.body = reminders
+
+    ctx.body = result
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
@@ -94,7 +100,7 @@ export const getRemindersByContact = async (ctx: Context) => {
 
 export const getRemindersByCompany = async (ctx: Context) => {
   try {
-    const reminders = await Reminder.findAll({
+    const result = await paginatedQuery(Reminder, ctx, {
       where: {
         companyId: ctx.params.companyId,
       },
@@ -104,7 +110,8 @@ export const getRemindersByCompany = async (ctx: Context) => {
       ],
       order: [["dueDate", "ASC"]],
     })
-    ctx.body = reminders
+
+    ctx.body = result
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }

@@ -1,12 +1,15 @@
 import { Context } from "koa"
 import { Company, Contact, Note, User } from "../models"
+import { paginatedQuery } from "../utils/pagination"
 
 export const getAllNotes = async (ctx: Context) => {
   try {
-    const notes = await Note.findAll({
+    const result = await paginatedQuery(Note, ctx, {
       include: [{ model: User, as: "createdBy" }, { model: Contact }, { model: Company }],
+      where: { tenantId: ctx.state.user.tenantId },
     })
-    ctx.body = notes
+
+    ctx.body = result
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
@@ -32,14 +35,15 @@ export const getNoteById = async (ctx: Context) => {
 
 export const getNotesByContact = async (ctx: Context) => {
   try {
-    const notes = await Note.findAll({
+    const result = await paginatedQuery(Note, ctx, {
       where: {
         contactId: ctx.params.contactId,
       },
       include: [{ model: User, as: "createdBy" }],
       order: [["createdAt", "DESC"]],
     })
-    ctx.body = notes
+
+    ctx.body = result
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
@@ -48,14 +52,15 @@ export const getNotesByContact = async (ctx: Context) => {
 
 export const getNotesByCompany = async (ctx: Context) => {
   try {
-    const notes = await Note.findAll({
+    const result = await paginatedQuery(Note, ctx, {
       where: {
         companyId: ctx.params.companyId,
       },
       include: [{ model: User, as: "createdBy" }],
       order: [["createdAt", "DESC"]],
     })
-    ctx.body = notes
+
+    ctx.body = result
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
@@ -64,14 +69,15 @@ export const getNotesByCompany = async (ctx: Context) => {
 
 export const getNotesByTenant = async (ctx: Context) => {
   try {
-    const notes = await Note.findAll({
+    const result = await paginatedQuery(Note, ctx, {
       where: {
         tenantId: ctx.params.tenantId,
       },
       include: [{ model: User, as: "createdBy" }, { model: Contact }, { model: Company }],
       order: [["createdAt", "DESC"]],
     })
-    ctx.body = notes
+
+    ctx.body = result
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }

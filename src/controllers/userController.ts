@@ -1,12 +1,15 @@
 import { Context } from "koa"
 import { Role, User } from "../models"
+import { paginatedQuery } from "../utils/pagination"
 
 export const getAllUsers = async (ctx: Context) => {
   try {
-    const users = await User.findAll({
+    const result = await paginatedQuery(User, ctx, {
       include: Role,
+      where: { tenantId: ctx.state.user.tenantId },
     })
-    ctx.body = users
+
+    ctx.body = result
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
@@ -32,13 +35,14 @@ export const getUserById = async (ctx: Context) => {
 
 export const getUsersByTenant = async (ctx: Context) => {
   try {
-    const users = await User.findAll({
+    const result = await paginatedQuery(User, ctx, {
       where: {
         tenantId: ctx.params.tenantId,
       },
       include: Role,
     })
-    ctx.body = users
+
+    ctx.body = result
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }

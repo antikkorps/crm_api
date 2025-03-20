@@ -1,16 +1,19 @@
 import { Context } from "koa"
 import { Company, Contact, Status, User } from "../models"
+import { paginatedQuery } from "../utils/pagination"
 
 export const getAllContacts = async (ctx: Context) => {
   try {
-    const contacts = await Contact.findAll({
+    const result = await paginatedQuery(Contact, ctx, {
       include: [
         { model: Company, as: "company" },
         { model: Status },
         { model: User, as: "assignedTo" },
       ],
+      where: { tenantId: ctx.state.user.tenantId },
     })
-    ctx.body = contacts
+
+    ctx.body = result
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
@@ -40,7 +43,7 @@ export const getContactById = async (ctx: Context) => {
 
 export const getContactsByTenant = async (ctx: Context) => {
   try {
-    const contacts = await Contact.findAll({
+    const result = await paginatedQuery(Contact, ctx, {
       where: {
         tenantId: ctx.params.tenantId,
       },
@@ -50,7 +53,8 @@ export const getContactsByTenant = async (ctx: Context) => {
         { model: User, as: "assignedTo" },
       ],
     })
-    ctx.body = contacts
+
+    ctx.body = result
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
@@ -59,13 +63,14 @@ export const getContactsByTenant = async (ctx: Context) => {
 
 export const getContactsByCompany = async (ctx: Context) => {
   try {
-    const contacts = await Contact.findAll({
+    const result = await paginatedQuery(Contact, ctx, {
       where: {
         companyId: ctx.params.companyId,
       },
       include: [{ model: Status }, { model: User, as: "assignedTo" }],
     })
-    ctx.body = contacts
+
+    ctx.body = result
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
