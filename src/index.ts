@@ -3,6 +3,7 @@ import Koa from "koa"
 import bodyParser from "koa-bodyparser"
 import Router from "koa-router"
 import { sequelize, testConnection } from "./config/database"
+import { errorMiddleware } from "./middlewares/errorMiddleware"
 import apiRoutes from "./routes"
 import { seedDatabase } from "./seeders"
 import { DbErrorResponse, DbStatusResponse } from "./types/responses"
@@ -24,7 +25,10 @@ const corsOptions = {
   credentials: true, // Autorise l'envoi de cookies entre origines
 }
 
-// Middleware
+// Middleware d'erreur - doit être le premier pour capturer toutes les erreurs
+app.use(errorMiddleware)
+
+// Autres middlewares
 app.use(cors(corsOptions))
 app.use(bodyParser())
 

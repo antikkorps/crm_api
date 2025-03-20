@@ -7,6 +7,7 @@ import Koa from "koa"
 import bodyParser from "koa-bodyparser"
 import Router from "koa-router"
 import { sequelize, testConnection } from "../src/config/database"
+import { errorMiddleware } from "../src/middlewares/errorMiddleware"
 import apiRoutes from "../src/routes"
 import { DbErrorResponse, DbStatusResponse } from "../src/types/responses"
 
@@ -16,12 +17,15 @@ require("dotenv").config()
 const app = new Koa()
 const router = new Router()
 
+// Middleware d'erreur - doit être le premier pour capturer toutes les erreurs
+app.use(errorMiddleware)
+
 // Configuration des options CORS
 const corsOptions = {
   origin: process.env.CORS_ORIGIN || "*",
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'Accept'],
-  exposeHeaders: ['Content-Length', 'Date', 'X-Request-Id'],
+  allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowHeaders: ["Content-Type", "Authorization", "Accept"],
+  exposeHeaders: ["Content-Length", "Date", "X-Request-Id"],
   maxAge: 86400,
   credentials: true,
 }
