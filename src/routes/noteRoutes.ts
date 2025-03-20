@@ -9,19 +9,25 @@ import {
   getNotesByTenant,
   updateNote,
 } from "../controllers/noteController"
+import { checkPermission } from "../middlewares/roleMiddleware"
+import { protectCrudRoutes } from "../utils/routeProtection"
 
 const router = new Router({ prefix: "/api/notes" })
 
-// Routes générales
-router.get("/", getAllNotes)
-router.get("/:id", getNoteById)
-router.post("/", createNote)
-router.put("/:id", updateNote)
-router.delete("/:id", deleteNote)
+// Protection des routes CRUD principales
+protectCrudRoutes(router, "notes", {
+  getAll: getAllNotes,
+  getById: getNoteById,
+  create: createNote,
+  update: updateNote,
+  delete: deleteNote,
+})
 
-// Routes spécialisées
-router.get("/contact/:contactId", getNotesByContact)
-router.get("/company/:companyId", getNotesByCompany)
-router.get("/tenant/:tenantId", getNotesByTenant)
+// Routes spécialisées avec leurs propres protections
+router.get("/contact/:contactId", checkPermission("notes", "read"), getNotesByContact)
+
+router.get("/company/:companyId", checkPermission("notes", "read"), getNotesByCompany)
+
+router.get("/tenant/:tenantId", checkPermission("notes", "read"), getNotesByTenant)
 
 export default router

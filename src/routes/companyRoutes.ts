@@ -7,15 +7,25 @@ import {
   getCompanyById,
   updateCompany,
 } from "../controllers/companyController"
+import { checkPermission } from "../middlewares/roleMiddleware"
+import { protectCrudRoutes } from "../utils/routeProtection"
 
 const router = new Router({ prefix: "/api/companies" })
 
-// Routes pour les entreprises
-router.get("/", getAllCompanies)
-router.get("/:id", getCompanyById)
-router.get("/tenant/:tenantId", getCompaniesByTenant)
-router.post("/", createCompany)
-router.put("/:id", updateCompany)
-router.delete("/:id", deleteCompany)
+// Protection des routes CRUD principales
+protectCrudRoutes(router, "companies", {
+  getAll: getAllCompanies,
+  getById: getCompanyById,
+  create: createCompany,
+  update: updateCompany,
+  delete: deleteCompany,
+})
+
+// Routes spécialisées avec leurs propres protections
+router.get(
+  "/tenant/:tenantId",
+  checkPermission("companies", "read"),
+  getCompaniesByTenant
+)
 
 export default router
