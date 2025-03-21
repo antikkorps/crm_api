@@ -13,6 +13,7 @@ import statusRoutes from "./statusRoutes"
 import superAdminRoutes from "./superAdminRoutes"
 import tenantRoutes from "./tenantRoutes"
 import userRoutes from "./userRoutes"
+import workflowRoutes from "./workflowRoutes"
 
 const router = new Router()
 
@@ -37,5 +38,6 @@ router.use(activityRoutes.routes())
 router.use(segmentRoutes.routes())
 router.use(reminderRoutes.routes())
 router.use(analyticsRoutes.routes())
+router.use(workflowRoutes.routes())
 
 export default router

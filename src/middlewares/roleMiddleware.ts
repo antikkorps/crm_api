@@ -9,6 +9,7 @@ interface ResourcePermission {
   read: boolean
   update: boolean
   delete: boolean
+  execute: boolean
 }
 
 /**

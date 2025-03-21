@@ -11,6 +11,10 @@ import SegmentModel, { Segment } from "./segment"
 import StatusModel, { Status } from "./status"
 import TenantModel, { Tenant } from "./tenant"
 import UserModel, { User } from "./user"
+import WorkflowModel, { Workflow } from "./workflow"
+import WorkflowActionModel, { WorkflowAction } from "./workflowAction"
+import WorkflowExecutionModel, { WorkflowExecution } from "./workflowExecution"
+import WorkflowTriggerModel, { WorkflowTrigger } from "./workflowTrigger"
 
 // Relations Tenant
 TenantModel.hasMany(UserModel, { foreignKey: "tenantId" })
@@ -22,6 +26,7 @@ TenantModel.hasMany(NoteModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(ActivityModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(SegmentModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(ReminderModel, { foreignKey: "tenantId" })
+TenantModel.hasMany(WorkflowModel, { foreignKey: "tenantId" })
 
 // Relations User
 UserModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
@@ -34,6 +39,7 @@ UserModel.hasMany(ActivityModel, { foreignKey: "assignedToId", as: "assignedActi
 UserModel.hasMany(SegmentModel, { foreignKey: "createdById" })
 UserModel.hasMany(ReminderModel, { foreignKey: "createdById" })
 UserModel.hasMany(ReminderModel, { foreignKey: "assignedToId", as: "assignedReminders" })
+UserModel.hasMany(WorkflowModel, { foreignKey: "createdById" })
 
 // Relations Role
 RoleModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
@@ -96,6 +102,25 @@ ReminderModel.belongsTo(CompanyModel, { foreignKey: "companyId" })
 ReminderModel.belongsTo(UserModel, { as: "createdBy", foreignKey: "createdById" })
 ReminderModel.belongsTo(UserModel, { as: "assignedTo", foreignKey: "assignedToId" })
 
+// Relations Workflow
+WorkflowModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
+WorkflowModel.belongsTo(UserModel, { as: "createdBy", foreignKey: "createdById" })
+WorkflowModel.hasMany(WorkflowTriggerModel, { foreignKey: "workflowId" })
+WorkflowModel.hasMany(WorkflowActionModel, { foreignKey: "workflowId" })
+WorkflowModel.hasMany(WorkflowExecutionModel, { foreignKey: "workflowId" })
+
+// Relations WorkflowTrigger
+WorkflowTriggerModel.belongsTo(WorkflowModel, { foreignKey: "workflowId" })
+WorkflowTriggerModel.hasMany(WorkflowExecutionModel, { foreignKey: "triggerId" })
+
+// Relations WorkflowAction
+WorkflowActionModel.belongsTo(WorkflowModel, { foreignKey: "workflowId" })
+
+// Relations WorkflowExecution
+WorkflowExecutionModel.belongsTo(WorkflowModel, { foreignKey: "workflowId" })
+WorkflowExecutionModel.belongsTo(WorkflowTriggerModel, { foreignKey: "triggerId" })
+WorkflowExecutionModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
+
 // Export des modèles
 export {
   Activity,
@@ -110,4 +135,8 @@ export {
   Status,
   Tenant,
   User,
+  Workflow,
+  WorkflowAction,
+  WorkflowExecution,
+  WorkflowTrigger,
 }

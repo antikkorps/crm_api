@@ -6,6 +6,7 @@ import { sequelize, testConnection } from "./config/database"
 import { errorMiddleware } from "./middlewares/errorMiddleware"
 import apiRoutes from "./routes"
 import { seedDatabase } from "./seeders"
+import { initializeWorkflowEngine } from "./services/workflowEngine"
 import { DbErrorResponse, DbStatusResponse } from "./types/responses"
 
 require("dotenv").config()
@@ -75,6 +76,10 @@ const startServer = async () => {
         console.error("❌ Error seeding database 😞😞😞 :", seedError)
       }
     }
+
+    // Initialiser le moteur de workflow
+    initializeWorkflowEngine()
+    console.log("✅ Workflow engine initialized 🔄")
 
     // Démarrer le serveur
     app.listen(PORT, () => {
