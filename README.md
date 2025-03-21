@@ -1,3 +1,23 @@
+# API CRM - Documentation
+
+## Système de Versioning de l'API
+
+L'API utilise un système de versioning pour assurer la compatibilité ascendante. Les routes sont accessibles via:
+
+- `/api/v1/...` - Version 1 explicite de l'API
+- `/api/...` - Redirection automatique vers la dernière version stable (actuellement v1)
+
+### Exemples d'utilisation:
+
+Ces deux routes sont équivalentes et pointent vers la même ressource:
+
+- `/api/v1/contacts`
+- `/api/contacts`
+
+Cependant, il est recommandé d'utiliser la version explicite (`/api/v1/...`) dans vos intégrations pour éviter des problèmes de compatibilité lors des futures mises à jour.
+
+## Routes principales
+
 # crm_api
 
 This is a koa project for CRM API.
