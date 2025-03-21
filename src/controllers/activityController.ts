@@ -11,8 +11,8 @@ export const getAllActivities = async (ctx: Context) => {
   try {
     const result = await paginatedQuery(Activity, ctx, {
       include: [
-        { model: User, as: "createdBy" },
-        { model: User, as: "assignedTo" },
+        { model: User, as: "createdBy", attributes: { exclude: ["password"] } },
+        { model: User, as: "assignedTo", attributes: { exclude: ["password"] } },
         { model: Contact },
         { model: Company },
       ],
@@ -33,8 +33,8 @@ export const getActivityById = async (ctx: Context) => {
   try {
     const activity = await Activity.findByPk(ctx.params.id, {
       include: [
-        { model: User, as: "createdBy" },
-        { model: User, as: "assignedTo" },
+        { model: User, as: "createdBy", attributes: { exclude: ["password"] } },
+        { model: User, as: "assignedTo", attributes: { exclude: ["password"] } },
         { model: Contact },
         { model: Company },
       ],
@@ -66,8 +66,8 @@ export const getActivitiesByType = async (ctx: Context) => {
         type,
       },
       include: [
-        { model: User, as: "createdBy" },
-        { model: User, as: "assignedTo" },
+        { model: User, as: "createdBy", attributes: { exclude: ["password"] } },
+        { model: User, as: "assignedTo", attributes: { exclude: ["password"] } },
         { model: Contact },
         { model: Company },
       ],
@@ -91,8 +91,8 @@ export const getActivitiesByContact = async (ctx: Context) => {
         contactId: ctx.params.contactId,
       },
       include: [
-        { model: User, as: "createdBy" },
-        { model: User, as: "assignedTo" },
+        { model: User, as: "createdBy", attributes: { exclude: ["password"] } },
+        { model: User, as: "assignedTo", attributes: { exclude: ["password"] } },
         { model: Company },
       ],
       order: [["createdAt", "DESC"]],
@@ -115,8 +115,8 @@ export const getActivitiesByCompany = async (ctx: Context) => {
         companyId: ctx.params.companyId,
       },
       include: [
-        { model: User, as: "createdBy" },
-        { model: User, as: "assignedTo" },
+        { model: User, as: "createdBy", attributes: { exclude: ["password"] } },
+        { model: User, as: "assignedTo", attributes: { exclude: ["password"] } },
         { model: Contact },
       ],
       order: [["createdAt", "DESC"]],
@@ -141,7 +141,7 @@ export const getActivitiesByUser = async (ctx: Context) => {
       include: [
         { model: Contact },
         { model: Company },
-        { model: User, as: "assignedTo" },
+        { model: User, as: "assignedTo", attributes: { exclude: ["password"] } },
       ],
       order: [["createdAt", "DESC"]],
     })
@@ -167,8 +167,8 @@ export const getRecentActivities = async (ctx: Context) => {
         createdAt: { [Op.gte]: startDate },
       },
       include: [
-        { model: User, as: "createdBy" },
-        { model: User, as: "assignedTo" },
+        { model: User, as: "createdBy", attributes: { exclude: ["password"] } },
+        { model: User, as: "assignedTo", attributes: { exclude: ["password"] } },
         { model: Contact },
         { model: Company },
       ],
@@ -205,8 +205,8 @@ export const createActivity = async (ctx: Context) => {
     // Récupérer l'activité créée avec ses relations
     const createdActivity = await Activity.findByPk((activity as any).id, {
       include: [
-        { model: User, as: "createdBy" },
-        { model: User, as: "assignedTo" },
+        { model: User, as: "createdBy", attributes: { exclude: ["password"] } },
+        { model: User, as: "assignedTo", attributes: { exclude: ["password"] } },
         { model: Contact },
         { model: Company },
       ],
@@ -255,8 +255,8 @@ export const updateActivity = async (ctx: Context) => {
     // Récupérer l'activité mise à jour avec ses relations
     const updatedActivity = await Activity.findByPk(ctx.params.id, {
       include: [
-        { model: User, as: "createdBy" },
-        { model: User, as: "assignedTo" },
+        { model: User, as: "createdBy", attributes: { exclude: ["password"] } },
+        { model: User, as: "assignedTo", attributes: { exclude: ["password"] } },
         { model: Contact },
         { model: Company },
       ],

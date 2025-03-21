@@ -1,5 +1,5 @@
 import { Context } from "koa"
-import { FindOptions, Model } from "sequelize"
+import { FindOptions, Includeable, Model } from "sequelize"
 
 export interface PaginationParams {
   page: number
@@ -68,11 +68,7 @@ export const buildPaginatedResponse = <T>(
 
 /**
  * Exécute une requête avec pagination et renvoie une réponse formatée
- * @param model Le modèle Sequelize à utiliser
- * @param ctx Le contexte Koa
- * @param findOptions Les options de requête Sequelize
- * @param defaultLimit Limite par défaut si non spécifiée
- * @returns Un objet contenant les éléments et les métadonnées de pagination
+ * Cette fonction traite automatiquement les inclusions d'utilisateurs pour exclure les mots de passe
  */
 export const paginatedQuery = async <T extends Model>(
   model: any,
@@ -81,6 +77,53 @@ export const paginatedQuery = async <T extends Model>(
   defaultLimit: number = 10
 ): Promise<PaginatedResponse<T>> => {
   const params = extractPaginationParams(ctx, defaultLimit)
+
+  // Traiter les inclusions pour exclure les mots de passe des utilisateurs
+  if (findOptions.include) {
+    const processIncludes = (includes: Includeable | Includeable[]) => {
+      if (Array.isArray(includes)) {
+        includes.forEach((include) => {
+          // Si c'est une inclusion User, ajoutez l'exclusion du mot de passe
+          if (typeof include === "object" && include !== null && "model" in include) {
+            const modelInclude = include as { model: any; as?: string; attributes?: any }
+            if (
+              modelInclude.model.name === "User" &&
+              (!modelInclude.attributes || !modelInclude.attributes.exclude)
+            ) {
+              modelInclude.attributes = modelInclude.attributes || {}
+              modelInclude.attributes.exclude = [
+                ...(modelInclude.attributes.exclude || []),
+                "password",
+              ]
+            }
+
+            // Traitement récursif des sous-inclusions
+            if ("include" in modelInclude && modelInclude.include) {
+              processIncludes(modelInclude.include)
+            }
+          }
+        })
+      } else if (
+        typeof includes === "object" &&
+        includes !== null &&
+        "model" in includes
+      ) {
+        const modelInclude = includes as { model: any; as?: string; attributes?: any }
+        if (
+          modelInclude.model.name === "User" &&
+          (!modelInclude.attributes || !modelInclude.attributes.exclude)
+        ) {
+          modelInclude.attributes = modelInclude.attributes || {}
+          modelInclude.attributes.exclude = [
+            ...(modelInclude.attributes.exclude || []),
+            "password",
+          ]
+        }
+      }
+    }
+
+    processIncludes(findOptions.include)
+  }
 
   // Ajouter les paramètres de pagination aux options de requête
   const options = {

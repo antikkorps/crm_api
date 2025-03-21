@@ -11,7 +11,13 @@ import { updateSegmentMembers } from "../utils/segmentRuleEngine"
 export const getAllSegments = async (ctx: Context) => {
   try {
     const result = await paginatedQuery(Segment, ctx, {
-      include: [{ model: User, as: "createdBy" }],
+      include: [
+        {
+          model: User,
+          as: "createdBy",
+          attributes: { exclude: ["password"] }, // Exclure le mot de passe
+        },
+      ],
       where: { tenantId: ctx.state.user.tenantId },
       order: [["createdAt", "DESC"]],
     })
@@ -28,7 +34,13 @@ export const getAllSegments = async (ctx: Context) => {
 export const getSegmentById = async (ctx: Context) => {
   try {
     const segment = await Segment.findByPk(ctx.params.id, {
-      include: [{ model: User, as: "createdBy" }],
+      include: [
+        {
+          model: User,
+          as: "createdBy",
+          attributes: { exclude: ["password"] }, // Exclure le mot de passe
+        },
+      ],
     })
 
     if (!segment) {
@@ -120,7 +132,13 @@ export const createSegment = async (ctx: Context) => {
 
     // Récupérer le segment créé avec ses relations
     const createdSegment = await Segment.findByPk((segment as any).id, {
-      include: [{ model: User, as: "createdBy" }],
+      include: [
+        {
+          model: User,
+          as: "createdBy",
+          attributes: { exclude: ["password"] }, // Exclure le mot de passe
+        },
+      ],
     })
 
     ctx.status = 201
@@ -164,7 +182,13 @@ export const updateSegment = async (ctx: Context) => {
 
     // Récupérer le segment mis à jour avec ses relations
     const updatedSegment = await Segment.findByPk(ctx.params.id, {
-      include: [{ model: User, as: "createdBy" }],
+      include: [
+        {
+          model: User,
+          as: "createdBy",
+          attributes: { exclude: ["password"] }, // Exclure le mot de passe
+        },
+      ],
     })
 
     ctx.body = updatedSegment
