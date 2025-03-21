@@ -110,12 +110,12 @@ class PluginRegistry {
    */
   public async register(plugin: Plugin): Promise<boolean> {
     if (this.plugins.has(plugin.metadata.id)) {
-      console.warn(`Plugin ${plugin.metadata.id} is already registered`)
+      console.warn(`Plugin ${plugin.metadata.id} is already registered 🤯🤯🤯`)
       return false
     }
 
     this.plugins.set(plugin.metadata.id, plugin)
-    console.log(`Plugin ${plugin.metadata.id} registered successfully`)
+    console.log(`Plugin ${plugin.metadata.id} registered successfully 🔥🔥🔥`)
 
     return true
   }
@@ -131,7 +131,7 @@ class PluginRegistry {
     const plugin = this.plugins.get(pluginId)
 
     if (!plugin) {
-      console.error(`Plugin ${pluginId} not found`)
+      console.error(`Plugin ${pluginId} not found 😮😮😮`)
       return false
     }
 

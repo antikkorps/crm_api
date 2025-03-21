@@ -4,33 +4,28 @@ import nodemailer, { Transporter } from "nodemailer"
 let transporter: Transporter
 
 // Initialiser le transporteur Nodemailer
-export const initMailer = (): void => {
+export const initMailer = async (): Promise<void> => {
   // En développement, utiliser Ethereal pour tester
   if (process.env.NODE_ENV === "development" && !process.env.SMTP_HOST) {
-    console.log("Creating test email account for development")
-    nodemailer
-      .createTestAccount()
-      .then(
-        (testAccount: {
-          user: string
-          pass: string
-          smtp: { host: string; port: number; secure: boolean }
-          web: string
-        }) => {
-          console.log("Test email account created:", testAccount)
+    console.log("Creating test email 📧 account for development")
+    try {
+      const testAccount = await nodemailer.createTestAccount()
+      console.log("Test email account created:", testAccount)
 
-          transporter = nodemailer.createTransport({
-            host: "smtp.ethereal.email",
-            port: 587,
-            secure: false, // true for 465, false for other ports
-            auth: {
-              user: testAccount.user,
-              pass: testAccount.pass,
-            },
-          })
-          console.log("Development email transport configured")
-        }
-      )
+      transporter = nodemailer.createTransport({
+        host: "smtp.ethereal.email",
+        port: 587,
+        secure: false, // true for 465, false for other ports
+        auth: {
+          user: testAccount.user,
+          pass: testAccount.pass,
+        },
+      })
+      console.log("Development email 📧 transport configured 🔥🔥🔥")
+    } catch (error) {
+      console.error("Failed to create test email account:", error)
+      throw error
+    }
   } else {
     // En production, utiliser les paramètres SMTP configurés
     transporter = nodemailer.createTransport({
@@ -42,14 +37,14 @@ export const initMailer = (): void => {
         pass: process.env.SMTP_PASSWORD,
       },
     })
-    console.log("Production email transport configured")
+    console.log("Production email 📧 transport configured 🔥🔥🔥")
   }
 }
 
 // Récupérer le transporteur
 export const getMailer = (): Transporter => {
   if (!transporter) {
-    throw new Error("Email transporter not initialized")
+    throw new Error("Email transporter not initialized ⚠️⚠️⚠️")
   }
   return transporter
 }
@@ -58,13 +53,13 @@ export const getMailer = (): Transporter => {
 export const verifyMailerConnection = async (): Promise<boolean> => {
   try {
     if (!transporter) {
-      throw new Error("Email transporter not initialized")
+      throw new Error("Email transporter not initialized ⚠️⚠️⚠️")
     }
     await transporter.verify()
-    console.log("Email server connection verified successfully")
+    console.log("Email server connection verified successfully 🔥🔥🔥")
     return true
   } catch (error) {
-    console.error("Email server connection failed:", error)
+    console.error("Email server connection failed 😢😢😢:", error)
     return false
   }
 }

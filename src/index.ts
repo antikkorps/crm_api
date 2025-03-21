@@ -82,11 +82,11 @@ const startServer = async () => {
     }
 
     // Initialiser le mailer
-    initMailer()
-
+    await initMailer()
+    
     // Vérifier la connexion au serveur email
     await verifyMailerConnection()
-
+    
     // Enregistrer les helpers pour les templates
     registerHelpers()
 
