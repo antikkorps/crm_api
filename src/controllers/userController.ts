@@ -7,6 +7,7 @@ export const getAllUsers = async (ctx: Context) => {
     const result = await paginatedQuery(User, ctx, {
       include: Role,
       where: { tenantId: ctx.state.user.tenantId },
+      attributes: { exclude: ["password"] }, // Exclure le mot de passe
     })
 
     ctx.body = result
@@ -20,6 +21,7 @@ export const getUserById = async (ctx: Context) => {
   try {
     const user = await User.findByPk(ctx.params.id, {
       include: Role,
+      attributes: { exclude: ["password"] }, // Exclure le mot de passe
     })
     if (!user) {
       ctx.status = 404
@@ -40,6 +42,7 @@ export const getUsersByTenant = async (ctx: Context) => {
         tenantId: ctx.params.tenantId,
       },
       include: Role,
+      attributes: { exclude: ["password"] }, // Exclure le mot de passe
     })
 
     ctx.body = result
@@ -52,8 +55,15 @@ export const getUsersByTenant = async (ctx: Context) => {
 export const createUser = async (ctx: Context) => {
   try {
     const user = await User.create((ctx.request as any).body)
+
+    // Récupérer l'utilisateur créé sans le mot de passe
+    const createdUser = await User.findByPk((user as any).id, {
+      include: Role,
+      attributes: { exclude: ["password"] },
+    })
+
     ctx.status = 201
-    ctx.body = user
+    ctx.body = createdUser
   } catch (error: unknown) {
     ctx.status = 400
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
@@ -69,7 +79,14 @@ export const updateUser = async (ctx: Context) => {
       return
     }
     await user.update((ctx.request as any).body)
-    ctx.body = user
+
+    // Récupérer l'utilisateur mis à jour sans le mot de passe
+    const updatedUser = await User.findByPk(ctx.params.id, {
+      include: Role,
+      attributes: { exclude: ["password"] },
+    })
+
+    ctx.body = updatedUser
   } catch (error: unknown) {
     ctx.status = 400
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
