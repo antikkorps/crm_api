@@ -5,12 +5,14 @@ import companyRoutes from "../companyRoutes"
 import contactRoutes from "../contactRoutes"
 import integrationsRoutes from "../integrationsRoutes"
 import noteRoutes from "../noteRoutes"
+import notificationRoutes from "../notificationRoutes"
 import reminderRoutes from "../reminderRoutes"
 import roleRoutes from "../roleRoutes"
 import segmentRoutes from "../segmentRoutes"
 import statusRoutes from "../statusRoutes"
 import tenantRoutes from "../tenantRoutes"
 import userRoutes from "../userRoutes"
+import webhookRoutes from "../webhookRoutes"
 import workflowRoutes from "../workflowRoutes"
 
 /**
@@ -66,6 +68,8 @@ configureV1Routes(segmentRoutes)
 configureV1Routes(reminderRoutes)
 configureV1Routes(analyticsRoutes)
 configureV1Routes(workflowRoutes)
-configureV1Routes(integrationsRoutes) // Ajout des routes d'intégration
+configureV1Routes(integrationsRoutes)
+configureV1Routes(notificationRoutes)
+configureV1Routes(webhookRoutes)
 
 export default v1Router

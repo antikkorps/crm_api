@@ -3,6 +3,7 @@ import Koa from "koa"
 import bodyParser from "koa-bodyparser"
 import Router from "koa-router"
 import { sequelize, testConnection } from "./config/database"
+import { initMailer, verifyMailerConnection } from "./config/mailer"
 import { errorMiddleware } from "./middlewares/errorMiddleware"
 import digiformaPlugin from "./plugins/lms/digiforma"
 import { pluginRegistry } from "./plugins/registry"
@@ -10,6 +11,7 @@ import apiRoutes from "./routes"
 import { seedDatabase } from "./seeders"
 import { initializeWorkflowEngine } from "./services/workflowEngine"
 import { DbErrorResponse, DbStatusResponse } from "./types/responses"
+import { registerHelpers } from "./utils/templateRenderer"
 
 require("dotenv").config()
 
@@ -78,6 +80,15 @@ const startServer = async () => {
         console.error("❌ Error seeding database 😞😞😞 :", seedError)
       }
     }
+
+    // Initialiser le mailer
+    initMailer()
+
+    // Vérifier la connexion au serveur email
+    await verifyMailerConnection()
+
+    // Enregistrer les helpers pour les templates
+    registerHelpers()
 
     // Initialiser le moteur de workflow
     initializeWorkflowEngine()

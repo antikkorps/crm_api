@@ -6,6 +6,8 @@ import ContactModel, { Contact } from "./contact"
 import ContactSegmentModel, { ContactSegment } from "./contactSegment"
 import ExternalIntegrationModel, { ExternalIntegration } from "./externalIntegration"
 import NoteModel, { Note } from "./note"
+import NotificationModel, { Notification } from "./notification"
+import NotificationTemplateModel, { NotificationTemplate } from "./notificationTemplate"
 import ReminderModel, { Reminder } from "./reminder"
 import RoleModel, { Role } from "./role"
 import SegmentModel, { Segment } from "./segment"
@@ -13,6 +15,7 @@ import StatusModel, { Status } from "./status"
 import TenantModel, { Tenant } from "./tenant"
 import UserModel, { User } from "./user"
 import UserIntegrationModel, { UserIntegration } from "./userIntegration"
+import WebhookModel, { Webhook } from "./webhook"
 import WorkflowModel, { Workflow } from "./workflow"
 import WorkflowActionModel, { WorkflowAction } from "./workflowAction"
 import WorkflowExecutionModel, { WorkflowExecution } from "./workflowExecution"
@@ -30,6 +33,9 @@ TenantModel.hasMany(SegmentModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(ReminderModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(WorkflowModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(ExternalIntegrationModel, { foreignKey: "tenantId" })
+TenantModel.hasMany(NotificationModel, { foreignKey: "tenantId" })
+TenantModel.hasMany(NotificationTemplateModel, { foreignKey: "tenantId" })
+TenantModel.hasMany(WebhookModel, { foreignKey: "tenantId" })
 
 // Relations User
 UserModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
@@ -44,6 +50,7 @@ UserModel.hasMany(ReminderModel, { foreignKey: "createdById" })
 UserModel.hasMany(ReminderModel, { foreignKey: "assignedToId", as: "assignedReminders" })
 UserModel.hasMany(WorkflowModel, { foreignKey: "createdById" })
 UserModel.hasMany(UserIntegrationModel, { foreignKey: "userId" })
+UserModel.hasMany(NotificationModel, { foreignKey: "userId" })
 
 // Relations Role
 RoleModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
@@ -132,6 +139,17 @@ ExternalIntegrationModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
 UserIntegrationModel.belongsTo(UserModel, { foreignKey: "userId" })
 UserIntegrationModel.belongsTo(ExternalIntegrationModel, { foreignKey: "integrationId" })
 
+// Relations pour les notifications
+NotificationModel.belongsTo(UserModel, { foreignKey: "userId" })
+NotificationTemplateModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
+NotificationModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
+NotificationModel.belongsTo(NotificationTemplateModel, { foreignKey: "templateId" })
+
+// Relations pour les webhooks
+WebhookModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
+WebhookModel.belongsTo(UserModel, { as: "createdBy", foreignKey: "createdById" })
+NotificationModel.belongsTo(WebhookModel, { foreignKey: "webhookId" })
+
 // Export des modèles
 export {
   Activity,
@@ -140,6 +158,8 @@ export {
   ContactSegment,
   ExternalIntegration,
   Note,
+  Notification,
+  NotificationTemplate,
   Reminder,
   Role,
   Segment,
@@ -148,6 +168,7 @@ export {
   Tenant,
   User,
   UserIntegration,
+  Webhook,
   Workflow,
   WorkflowAction,
   WorkflowExecution,
