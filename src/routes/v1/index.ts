@@ -3,6 +3,7 @@ import activityRoutes from "../activityRoutes"
 import analyticsRoutes from "../analyticsRoutes"
 import companyRoutes from "../companyRoutes"
 import contactRoutes from "../contactRoutes"
+import integrationsRoutes from "../integrationsRoutes"
 import noteRoutes from "../noteRoutes"
 import reminderRoutes from "../reminderRoutes"
 import roleRoutes from "../roleRoutes"
@@ -65,5 +66,6 @@ configureV1Routes(segmentRoutes)
 configureV1Routes(reminderRoutes)
 configureV1Routes(analyticsRoutes)
 configureV1Routes(workflowRoutes)
+configureV1Routes(integrationsRoutes) // Ajout des routes d'intégration
 
 export default v1Router

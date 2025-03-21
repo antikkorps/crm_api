@@ -4,6 +4,7 @@ import ActivityModel, { Activity } from "./activity"
 import CompanyModel, { Company } from "./company"
 import ContactModel, { Contact } from "./contact"
 import ContactSegmentModel, { ContactSegment } from "./contactSegment"
+import ExternalIntegrationModel, { ExternalIntegration } from "./externalIntegration"
 import NoteModel, { Note } from "./note"
 import ReminderModel, { Reminder } from "./reminder"
 import RoleModel, { Role } from "./role"
@@ -11,6 +12,7 @@ import SegmentModel, { Segment } from "./segment"
 import StatusModel, { Status } from "./status"
 import TenantModel, { Tenant } from "./tenant"
 import UserModel, { User } from "./user"
+import UserIntegrationModel, { UserIntegration } from "./userIntegration"
 import WorkflowModel, { Workflow } from "./workflow"
 import WorkflowActionModel, { WorkflowAction } from "./workflowAction"
 import WorkflowExecutionModel, { WorkflowExecution } from "./workflowExecution"
@@ -27,6 +29,7 @@ TenantModel.hasMany(ActivityModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(SegmentModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(ReminderModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(WorkflowModel, { foreignKey: "tenantId" })
+TenantModel.hasMany(ExternalIntegrationModel, { foreignKey: "tenantId" })
 
 // Relations User
 UserModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
@@ -40,6 +43,7 @@ UserModel.hasMany(SegmentModel, { foreignKey: "createdById" })
 UserModel.hasMany(ReminderModel, { foreignKey: "createdById" })
 UserModel.hasMany(ReminderModel, { foreignKey: "assignedToId", as: "assignedReminders" })
 UserModel.hasMany(WorkflowModel, { foreignKey: "createdById" })
+UserModel.hasMany(UserIntegrationModel, { foreignKey: "userId" })
 
 // Relations Role
 RoleModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
@@ -121,12 +125,20 @@ WorkflowExecutionModel.belongsTo(WorkflowModel, { foreignKey: "workflowId" })
 WorkflowExecutionModel.belongsTo(WorkflowTriggerModel, { foreignKey: "triggerId" })
 WorkflowExecutionModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
 
+// Relations pour les intégrations externes
+ExternalIntegrationModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
+
+// Relations pour les intégrations utilisateur
+UserIntegrationModel.belongsTo(UserModel, { foreignKey: "userId" })
+UserIntegrationModel.belongsTo(ExternalIntegrationModel, { foreignKey: "integrationId" })
+
 // Export des modèles
 export {
   Activity,
   Company,
   Contact,
   ContactSegment,
+  ExternalIntegration,
   Note,
   Reminder,
   Role,
@@ -135,6 +147,7 @@ export {
   Status,
   Tenant,
   User,
+  UserIntegration,
   Workflow,
   WorkflowAction,
   WorkflowExecution,

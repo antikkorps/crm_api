@@ -4,6 +4,8 @@ import bodyParser from "koa-bodyparser"
 import Router from "koa-router"
 import { sequelize, testConnection } from "./config/database"
 import { errorMiddleware } from "./middlewares/errorMiddleware"
+import digiformaPlugin from "./plugins/lms/digiforma"
+import { pluginRegistry } from "./plugins/registry"
 import apiRoutes from "./routes"
 import { seedDatabase } from "./seeders"
 import { initializeWorkflowEngine } from "./services/workflowEngine"
@@ -80,6 +82,44 @@ const startServer = async () => {
     // Initialiser le moteur de workflow
     initializeWorkflowEngine()
     console.log("✅ Workflow engine initialized 🔄")
+
+    // Enregistrer les plugins disponibles
+    await pluginRegistry.register(digiformaPlugin)
+
+    // Rechercher les intégrations actives dans la base de données
+    const { ExternalIntegration } = require("./models")
+    const activeIntegrations = await ExternalIntegration.findAll({
+      where: { enabled: true },
+    })
+
+    // Initialiser et activer les plugins correspondants
+    for (const integration of activeIntegrations) {
+      try {
+        const pluginId = `lms-${integration.get("provider")}`
+        const plugin = pluginRegistry.getPlugin(pluginId)
+
+        if (plugin) {
+          const config = {
+            apiKey: integration.get("apiKey"),
+            apiSecret: integration.get("apiSecret"),
+            baseUrl: integration.get("baseUrl"),
+            ...integration.get("configuration"),
+          }
+
+          await pluginRegistry.initialize(pluginId, integration.get("tenantId"), config)
+          await pluginRegistry.activate(pluginId)
+
+          console.log(
+            `Plugin ${pluginId} activated for tenant ${integration.get("tenantId")}`
+          )
+        }
+      } catch (error) {
+        console.error(
+          `Failed to activate plugin for integration ${integration.get("id")}:`,
+          error
+        )
+      }
+    }
 
     // Démarrer le serveur
     app.listen(PORT, () => {
