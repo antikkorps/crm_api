@@ -11,90 +11,85 @@ export const Activity = sequelize.define(
       defaultValue: () => uuidv4(),
     },
     type: {
-      type: DataTypes.ENUM("NOTE", "CALL", "EMAIL", "MEETING", "TASK"),
+      type: DataTypes.STRING,
       allowNull: false,
+      comment: "Type of activity: CALL, MEETING, TASK, EMAIL, NOTE, etc.",
     },
     title: {
       type: DataTypes.STRING,
-      allowNull: true,
+      allowNull: false,
     },
     content: {
       type: DataTypes.TEXT,
       allowNull: true,
     },
-    // Champs pour les appels téléphoniques
-    duration: {
-      type: DataTypes.INTEGER, // Durée en secondes
+    // Dates importantes
+    startTime: {
+      type: DataTypes.DATE,
       allowNull: true,
+      comment: "For meetings, calls, etc.",
     },
-    callDirection: {
-      type: DataTypes.ENUM("INBOUND", "OUTBOUND"),
+    endTime: {
+      type: DataTypes.DATE,
       allowNull: true,
+      comment: "For meetings, calls, etc.",
+    },
+    dueDate: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "For tasks",
+    },
+
+    // Champs spécifiques pour les activités de type CALL
+    callDirection: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "INBOUND or OUTBOUND",
+    },
+    duration: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      comment: "Call duration in minutes",
     },
     callOutcome: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    // Champs pour les emails
-    emailSubject: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    emailSender: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    emailRecipients: {
-      type: DataTypes.ARRAY(DataTypes.STRING),
-      allowNull: true,
-    },
-    emailStatus: {
-      type: DataTypes.ENUM("DRAFT", "SENT", "OPENED", "REPLIED"),
-      allowNull: true,
-    },
-    // Champs pour les réunions
-    startTime: {
-      type: DataTypes.DATE,
-      allowNull: true,
-    },
-    endTime: {
-      type: DataTypes.DATE,
-      allowNull: true,
-    },
+
+    // Champs spécifiques pour les activités de type MEETING
     location: {
       type: DataTypes.STRING,
       allowNull: true,
     },
     attendees: {
-      type: DataTypes.ARRAY(DataTypes.STRING), // Peut stocker des noms, emails ou IDs
-      allowNull: true,
-    },
-    meetingOutcome: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    // Champs pour les tâches
-    dueDate: {
-      type: DataTypes.DATE,
-      allowNull: true,
-    },
+
+    // Champs spécifiques pour les activités de type TASK
     priority: {
-      type: DataTypes.ENUM("LOW", "MEDIUM", "HIGH"),
+      type: DataTypes.STRING,
       allowNull: true,
+      comment: "LOW, MEDIUM, HIGH",
     },
     taskStatus: {
-      type: DataTypes.ENUM("TODO", "IN_PROGRESS", "DONE", "CANCELED"),
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "PENDING, IN_PROGRESS, COMPLETED, CANCELLED",
+    },
+
+    // Champs spécifiques pour les activités de type EMAIL
+    emailSubject: {
+      type: DataTypes.STRING,
       allowNull: true,
     },
-    assignedToId: {
-      type: DataTypes.UUID,
+    emailStatus: {
+      type: DataTypes.STRING,
       allowNull: true,
-      references: {
-        model: "users",
-        key: "id",
-      },
+      comment: "DRAFT, SENT, OPENED, CLICKED, BOUNCED",
     },
-    // Relations communes
+
+    // Relations
     contactId: {
       type: DataTypes.UUID,
       allowNull: true,
@@ -119,6 +114,14 @@ export const Activity = sequelize.define(
         key: "id",
       },
     },
+    assignedToId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: "users",
+        key: "id",
+      },
+    },
     tenantId: {
       type: DataTypes.UUID,
       allowNull: false,
@@ -138,43 +141,6 @@ export const Activity = sequelize.define(
   },
   {
     tableName: "activities",
-    // Hooks pour valider les champs en fonction du type
-    hooks: {
-      beforeValidate: (activity: any) => {
-        switch (activity.type) {
-          case "CALL":
-            if (
-              activity.callDirection &&
-              !["INBOUND", "OUTBOUND"].includes(activity.callDirection)
-            ) {
-              throw new Error("Invalid call direction")
-            }
-            break
-          case "EMAIL":
-            if (
-              activity.emailStatus &&
-              !["DRAFT", "SENT", "OPENED", "REPLIED"].includes(activity.emailStatus)
-            ) {
-              throw new Error("Invalid email status")
-            }
-            break
-          case "TASK":
-            if (
-              activity.priority &&
-              !["LOW", "MEDIUM", "HIGH"].includes(activity.priority)
-            ) {
-              throw new Error("Invalid task priority")
-            }
-            if (
-              activity.taskStatus &&
-              !["TODO", "IN_PROGRESS", "DONE", "CANCELED"].includes(activity.taskStatus)
-            ) {
-              throw new Error("Invalid task status")
-            }
-            break
-        }
-      },
-    },
   }
 )
 

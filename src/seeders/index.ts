@@ -1,4 +1,7 @@
 import { sequelize } from "../config/database"
+import { seedActivities } from "./activitySeeder"
+import { seedCompaniesAndContacts } from "./companyContactSeeder"
+import { seedNotes } from "./noteSeeder"
 import { seedRoles } from "./roleSeeder"
 import { seedStatuses } from "./statusSeeder"
 import { seedTenants } from "./tenantSeeder"
@@ -17,12 +20,23 @@ export const seedDatabase = async () => {
 
     // Créer le tenant par défaut
     const defaultTenant = await seedTenants()
+
+    // Récupérer le tenant existant si aucun n'a été créé
+    let tenantId
     if (!defaultTenant) {
       console.log("Using existing tenant")
-      return
+      // Récupérer le tenant existant
+      const { Tenant } = require("../models")
+      const existingTenant = await Tenant.findOne()
+      if (!existingTenant) {
+        throw new Error("No tenant found")
+      }
+      tenantId = existingTenant.get("id")
+    } else {
+      tenantId = defaultTenant.get("id") as string
     }
 
-    const tenantId = defaultTenant.get("id") as string
+    console.log(`Using tenant ID: ${tenantId}`)
 
     // Créer les rôles
     const { adminRole, userRole } = await seedRoles(tenantId)
@@ -37,6 +51,18 @@ export const seedDatabase = async () => {
 
     // Créer les utilisateurs
     await seedUsers(tenantId, adminRole.get("id") as string, userRole.get("id") as string)
+
+    // Créer les entreprises et contacts
+    await seedCompaniesAndContacts(tenantId)
+    console.log("Completed seeding companies and contacts")
+
+    // Créer des notes
+    await seedNotes(tenantId)
+    console.log("Completed seeding notes")
+
+    // Créer des activités
+    await seedActivities(tenantId)
+    console.log("Completed seeding activities")
 
     console.log("Database seeding completed successfully")
   } catch (error) {
