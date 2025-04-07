@@ -8,6 +8,7 @@ import {
   getActivitiesByUser,
   getActivityById,
   getAllActivities,
+  getMyTasks,
   getRecentActivities,
   updateActivity,
 } from "../controllers/activityController"
@@ -19,6 +20,7 @@ const router = new Router({ prefix: "/api/activities" })
 router.get("/", checkPermission("activities", "read"), getAllActivities)
 router.get("/recent", checkPermission("activities", "read"), getRecentActivities)
 router.get("/type/:type", checkPermission("activities", "read"), getActivitiesByType)
+router.get("/my-tasks", checkPermission("activities", "read"), getMyTasks)
 
 // Routes spécialisées
 router.get(

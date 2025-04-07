@@ -1,6 +1,6 @@
 import { Context } from "koa"
 import { Op } from "sequelize"
-import { Activity, Company, Contact, User } from "../models"
+import { Activity, Company, Contact, User, sequelize } from "../models"
 import { BadRequestError, NotFoundError } from "../utils/errors"
 import { paginatedQuery } from "../utils/pagination"
 
@@ -18,6 +18,54 @@ export const getAllActivities = async (ctx: Context) => {
       ],
       where: { tenantId: ctx.state.user.tenantId },
       order: [["createdAt", "DESC"]],
+    })
+
+    ctx.body = result
+  } catch (error: unknown) {
+    throw error
+  }
+}
+
+/**
+ * Récupère les tâches assignées à l'utilisateur courant
+ */
+export const getMyTasks = async (ctx: Context) => {
+  try {
+    const result = await paginatedQuery(Activity, ctx, {
+      include: [
+        { model: User, as: "createdBy", attributes: { exclude: ["password"] } },
+        { model: Contact },
+        { model: Company },
+      ],
+      where: {
+        tenantId: ctx.state.user.tenantId,
+        assignedToId: ctx.state.user.id,
+        type: "TASK",
+      },
+      order: [
+        // Priorité d'abord - HIGH en premier, puis MEDIUM, puis LOW
+        [
+          sequelize.literal(`CASE 
+          WHEN "priority" = 'HIGH' THEN 1 
+          WHEN "priority" = 'MEDIUM' THEN 2 
+          WHEN "priority" = 'LOW' THEN 3
+          ELSE 4
+        END`),
+          "ASC",
+        ],
+        // Ensuite par statut - PENDING et IN_PROGRESS en premier
+        [
+          sequelize.literal(`CASE 
+          WHEN "taskStatus" = 'PENDING' THEN 1 
+          WHEN "taskStatus" = 'IN_PROGRESS' THEN 2
+          WHEN "taskStatus" = 'COMPLETED' THEN 3
+          ELSE 4
+        END`),
+          "ASC",
+        ],
+        // Enfin par date de création, les plus récentes en premier
+        ["createdAt", "DESC"],
+      ],
     })
 
     ctx.body = result
