@@ -19,7 +19,7 @@ export const seedStatuses = async (tenantId: string) => {
       { name: "Lead", color: "#3498db", order: 1 },
       { name: "Qualified", color: "#2ecc71", order: 2 },
       { name: "Customer", color: "#9b59b6", order: 3 },
-      { name: "Churned", color: "#e74c3c", order: 4 },
+      { name: "Abandonned", color: "#e74c3c", order: 4 },
     ]
 
     // Statuts pour les entreprises
