@@ -5,6 +5,7 @@ import Router from "koa-router"
 import { sequelize, testConnection } from "./config/database"
 import { initMailer, verifyMailerConnection } from "./config/mailer"
 import { errorMiddleware } from "./middlewares/errorMiddleware"
+import { fileUploadMiddleware, staticFileMiddleware } from "./middlewares/fileMiddleware"
 import digiformaPlugin from "./plugins/lms/digiforma"
 import { pluginRegistry } from "./plugins/registry"
 import apiRoutes from "./routes"
@@ -36,6 +37,8 @@ app.use(errorMiddleware)
 // Autres middlewares
 app.use(cors(corsOptions))
 app.use(bodyParser())
+app.use(fileUploadMiddleware)
+app.use(staticFileMiddleware)
 
 // Test route to check database connection
 router.get("/db-status", async (ctx: Koa.Context): Promise<void> => {

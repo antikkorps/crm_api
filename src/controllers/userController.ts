@@ -1,7 +1,9 @@
 import { Context } from "koa"
 import { Role, User } from "../models"
 import { paginatedQuery } from "../utils/pagination"
-
+import { deleteFile, saveFile } from '../services/fileUploadService'
+import { BadRequestError } from '../utils/errors'
+import type {FileWithData} from '../types/fileUpload'
 export const getAllUsers = async (ctx: Context) => {
   try {
     const result = await paginatedQuery(User, ctx, {
@@ -106,5 +108,79 @@ export const deleteUser = async (ctx: Context) => {
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+/**
+ * Upload an avatar for a user
+ */
+export const uploadAvatar = async (ctx: Context) => {
+  try {
+    const userId = ctx.params.id
+    
+    // Check if user exists
+    const user = await User.findByPk(userId)
+    if (!user) {
+      ctx.status = 404
+      ctx.body = { error: "User not found" }
+      return
+    }
+    
+    // Get the file from the request
+    const file = ctx.request.files?.avatar
+    
+    if (!file) {
+      throw new BadRequestError('No avatar file provided')
+    }
+    
+    // Handle single file or array of files
+    const fileData = Array.isArray(file) ? file[0] : file;
+    
+    // Cast the file to our interface
+    const typedFile = fileData as unknown as FileWithData;
+    
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    if (!allowedTypes.includes(typedFile.mimetype)) {
+      throw new BadRequestError('Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.')
+    }
+    
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024 // 5MB
+    if (typedFile.size > maxSize) {
+      throw new BadRequestError('File too large. Maximum size is 5MB.')
+    }
+    
+    // Delete old avatar if exists
+    const oldAvatarUrl = user.get('avatarUrl') as string | null
+    if (oldAvatarUrl) {
+      await deleteFile(oldAvatarUrl)
+    }
+    
+    // Save the new file
+    const { path: avatarPath } = await saveFile(
+      typedFile.data, 
+      typedFile.name, 
+      'avatars'
+    )
+    
+    // Update the user with the new avatar URL
+    await user.update({ avatarUrl: avatarPath })
+    
+    // Return success response
+    ctx.body = {
+      success: true,
+      avatarUrl: avatarPath,
+      user: {
+        id: user.get('id'),
+        email: user.get('email'),
+        firstName: user.get('firstName'),
+        lastName: user.get('lastName'),
+        avatarUrl: avatarPath
+      }
+    }
+  } catch (error: unknown) {
+    // Pass error to error middleware
+    throw error
   }
 }

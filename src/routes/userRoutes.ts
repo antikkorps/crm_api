@@ -6,6 +6,7 @@ import {
   getUserById,
   getUsersByTenant,
   updateUser,
+  uploadAvatar
 } from "../controllers/userController"
 import { checkPermission } from "../middlewares/roleMiddleware"
 
@@ -18,5 +19,8 @@ router.get("/tenant/:tenantId", checkPermission("users", "read"), getUsersByTena
 router.post("/", checkPermission("users", "create"), createUser)
 router.put("/:id", checkPermission("users", "update"), updateUser)
 router.delete("/:id", checkPermission("users", "delete"), deleteUser)
+
+// Avatar upload route
+router.post("/:id/avatar", checkPermission("users", "update"), uploadAvatar)
 
 export default router
