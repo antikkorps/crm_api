@@ -1,7 +1,7 @@
 import { Context } from "koa"
 import { Op } from "sequelize"
-import { Activity, Company, Contact, User, sequelize } from "../models"
-import { BadRequestError, NotFoundError } from "../utils/errors"
+import { Activity, Company, Contact, Role, User, sequelize } from "../models"
+import { BadRequestError, ForbiddenError, NotFoundError } from "../utils/errors"
 import { paginatedQuery } from "../utils/pagination"
 
 /**
@@ -272,33 +272,47 @@ export const createActivity = async (ctx: Context) => {
  */
 export const updateActivity = async (ctx: Context) => {
   try {
-    const activity = await Activity.findByPk(ctx.params.id)
+    const activity = await Activity.findByPk(ctx.params.id);
 
     if (!activity) {
-      throw new NotFoundError(`Activity with ID ${ctx.params.id} not found`)
+      throw new NotFoundError(`Activity with ID ${ctx.params.id} not found`);
     }
 
     // Vérifier les permissions (créateur ou assigné)
-    const userId = ctx.state.user.id
-    if (
-      activity.get("createdById") !== userId &&
-      activity.get("assignedToId") !== userId
-    ) {
-      throw new NotFoundError("You don't have permission to update this activity")
+    const userId = ctx.state.user.id;
+    const createdById = activity.get("createdById");
+    const assignedToId = activity.get("assignedToId");
+
+    if (userId !== createdById && userId !== assignedToId) {
+      // Si l'utilisateur n'est pas le créateur et n'est pas assigné,
+      // vérifier s'il est admin pour autoriser quand même
+      const user = await User.findByPk(userId);
+      
+      // Utiliser une assertion de type pour indiquer que roleId est une chaîne
+      const roleId = user?.get("roleId") as string | undefined;
+      const role = roleId ? await Role.findByPk(roleId) : null;
+      
+      if (!role || role.get("name") !== "Admin") {
+        throw new ForbiddenError(
+          "You don't have permission to update this activity",
+          "INSUFFICIENT_PERMISSIONS",
+          { activityId: ctx.params.id, userId }
+        );
+      }
     }
 
-    const updateData = (ctx.request as any).body
+    const updateData = (ctx.request as any).body;
 
     // Si le type est modifié, valider le nouveau type
     if (updateData.type && updateData.type !== activity.get("type")) {
       if (!["NOTE", "CALL", "EMAIL", "MEETING", "TASK"].includes(updateData.type)) {
-        throw new BadRequestError("Invalid activity type")
+        throw new BadRequestError("Invalid activity type");
       }
       // Validation des champs pour le nouveau type
-      validateActivityFields({ ...activity.toJSON(), ...updateData })
+      validateActivityFields({ ...activity.toJSON(), ...updateData });
     }
 
-    await activity.update(updateData)
+    await activity.update(updateData);
 
     // Récupérer l'activité mise à jour avec ses relations
     const updatedActivity = await Activity.findByPk(ctx.params.id, {
@@ -308,11 +322,13 @@ export const updateActivity = async (ctx: Context) => {
         { model: Contact },
         { model: Company },
       ],
-    })
+    });
 
-    ctx.body = updatedActivity
+    ctx.body = updatedActivity;
   } catch (error: unknown) {
-    throw error
+    // Ajouter plus de détails au log d'erreur
+    console.error("Error updating activity:", error);
+    throw error;
   }
 }
 
