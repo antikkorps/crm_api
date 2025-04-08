@@ -50,6 +50,10 @@ export const User = sequelize.define(
         key: "id",
       },
     },
+    avatarUrl: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
