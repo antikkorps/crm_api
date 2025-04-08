@@ -77,6 +77,17 @@ export const checkPermission = (resource: string, action: keyof ResourcePermissi
         return
       }
 
+      // Vérifier si l'action existe dans les permissions de cette ressource
+      if (!(action in permissions[resource])) {
+        ctx.status = 403
+        ctx.body = {
+          error: `The action "${action}" is not defined for resource "${resource}"`,
+          resource,
+          action,
+        }
+        return
+      }
+
       // Vérifier si l'action est autorisée pour cette ressource
       if (!permissions[resource][action]) {
         ctx.status = 403
@@ -91,6 +102,7 @@ export const checkPermission = (resource: string, action: keyof ResourcePermissi
       // Si tout est OK, passer au middleware suivant
       await next()
     } catch (error) {
+      console.error("Permission check error:", error);
       ctx.status = 500
       ctx.body = {
         error: "Error checking permissions",
