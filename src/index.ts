@@ -1,6 +1,5 @@
 import cors from "@koa/cors"
 import Koa from "koa"
-import bodyParser from "koa-bodyparser"
 import Router from "koa-router"
 import { sequelize, testConnection } from "./config/database"
 import { initMailer, verifyMailerConnection } from "./config/mailer"
@@ -36,7 +35,6 @@ app.use(errorMiddleware)
 
 // Autres middlewares
 app.use(cors(corsOptions))
-app.use(bodyParser())
 app.use(fileUploadMiddleware)
 app.use(staticFileMiddleware)
 
