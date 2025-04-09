@@ -14,6 +14,14 @@ export const fileUploadMiddleware = koaBody({
     maxFileSize: 10 * 1024 * 1024, // 10MB limit
     keepExtensions: true,
   },
+  // Enable JSON parsing
+  json: true,
+  // Enable form parsing
+  urlencoded: true,
+  // Include parsing error in ctx
+  onError: (err, ctx) => {
+    ctx.throw(422, `Body parsing error: ${err.message}`);
+  }
 })
 
 // Configure static file serving middleware

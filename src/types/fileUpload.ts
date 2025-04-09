@@ -1,6 +1,9 @@
 export interface FileWithData {
-      mimetype: string;
-      size: number;
-      data: Buffer;
-      name: string;
-    }
+  size: number;
+  path: string;
+  name: string;
+  type: string;
+  mtime: Date;
+  mimetype: string;
+  data: Buffer;
+}
