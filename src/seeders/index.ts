@@ -2,10 +2,26 @@ import { sequelize } from "../config/database"
 import { seedActivities } from "./activitySeeder"
 import { seedCompaniesAndContacts } from "./companyContactSeeder"
 import { seedNotes } from "./noteSeeder"
+import { seedOpportunities } from "./opportunitySeeder"
 import { seedRoles } from "./roleSeeder"
-import { seedStatuses } from "./statusSeeder"
+import seedStatuses from "./statusSeeder"
 import { seedTenants } from "./tenantSeeder"
 import { seedUsers } from "./userSeeder"
+
+export { seedStatuses }
+
+// Function to run all seeders
+export const runAllSeeders = async (tenantId: string) => {
+  try {
+    await seedStatuses(tenantId)
+    console.log("All seeders completed successfully")
+  } catch (error) {
+    console.error("Error running seeders:", error)
+    throw error
+  }
+}
+
+export default runAllSeeders
 
 /**
  * Fonction principale pour initialiser la base de données avec des données de test
@@ -63,6 +79,10 @@ export const seedDatabase = async () => {
     // Créer des activités
     await seedActivities(tenantId)
     console.log("Completed seeding activities")
+
+    // Créer des opportunités
+    await seedOpportunities(tenantId)
+    console.log("Completed seeding opportunities")
 
     console.log("Database seeding completed successfully")
   } catch (error) {
