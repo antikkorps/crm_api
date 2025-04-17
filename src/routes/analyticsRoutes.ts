@@ -6,6 +6,7 @@ import {
   getDashboardSummary,
   getOpportunitiesByMonth,
   getOpportunitiesPipeline,
+  getOpportunitiesValueSummary,
   getReminderStats,
   getUserPerformance,
 } from "../controllers/analyticsController"
@@ -43,6 +44,11 @@ router.get(
   "/opportunities-by-month",
   checkPermission("analytics", "read"),
   getOpportunitiesByMonth
+)
+router.get(
+  "/opportunities-value-summary",
+  checkPermission("analytics", "read"),
+  getOpportunitiesValueSummary
 )
 
 export default router

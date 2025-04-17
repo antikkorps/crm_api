@@ -64,6 +64,11 @@ export const seedOpportunities = async (tenantId: string) => {
         faker.number.float({ min: 1000, max: 100000, multipleOf: 100 })
       )
 
+      // Générer une probabilité de conversion (en %)
+      const probability = Math.floor(
+        faker.number.float({ min: 10, max: 90, multipleOf: 5 })
+      )
+
       // Calculer une date de création entre il y a 6 mois et aujourd'hui
       const now = new Date()
       const sixMonthsAgo = new Date()
@@ -74,6 +79,7 @@ export const seedOpportunities = async (tenantId: string) => {
         name: faker.commerce.productName(),
         description: faker.lorem.paragraph(),
         value,
+        probability,
         statusId: status.get("id") as string,
         companyId: company.get("id") as string,
         contactId: contact?.get("id") as string | undefined,

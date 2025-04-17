@@ -7,6 +7,7 @@ interface OpportunityAttributes {
   name: string
   description?: string
   value: number
+  probability?: number
   statusId: string
   contactId?: string
   companyId?: string
@@ -27,6 +28,7 @@ export class Opportunity
   public name!: string
   public description!: string
   public value!: number
+  public probability!: number
   public statusId!: string
   public contactId!: string
   public companyId!: string
@@ -55,6 +57,10 @@ const OpportunityModel = Opportunity.init(
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
       defaultValue: 0,
+    },
+    probability: {
+      type: DataTypes.DECIMAL(5, 2),
+      allowNull: true,
     },
     statusId: {
       type: DataTypes.UUID,
