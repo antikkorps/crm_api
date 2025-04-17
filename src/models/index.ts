@@ -8,6 +8,7 @@ import ExternalIntegrationModel, { ExternalIntegration } from "./externalIntegra
 import NoteModel, { Note } from "./note"
 import NotificationModel, { Notification } from "./notification"
 import NotificationTemplateModel, { NotificationTemplate } from "./notificationTemplate"
+import OpportunityModel, { Opportunity } from "./opportunity"
 import ReminderModel, { Reminder } from "./reminder"
 import RoleModel, { Role } from "./role"
 import SegmentModel, { Segment } from "./segment"
@@ -36,6 +37,7 @@ TenantModel.hasMany(ExternalIntegrationModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(NotificationModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(NotificationTemplateModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(WebhookModel, { foreignKey: "tenantId" })
+TenantModel.hasMany(OpportunityModel, { foreignKey: "tenantId" })
 
 // Relations User
 UserModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
@@ -150,6 +152,13 @@ WebhookModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
 WebhookModel.belongsTo(UserModel, { as: "createdBy", foreignKey: "createdById" })
 NotificationModel.belongsTo(WebhookModel, { foreignKey: "webhookId" })
 
+// Relations pour les opportunités
+OpportunityModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
+OpportunityModel.belongsTo(StatusModel, { foreignKey: "statusId" })
+OpportunityModel.belongsTo(ContactModel, { foreignKey: "contactId" })
+OpportunityModel.belongsTo(CompanyModel, { foreignKey: "companyId" })
+OpportunityModel.belongsTo(UserModel, { as: "assignedTo", foreignKey: "assignedToId" })
+
 // Export des modèles
 export {
   Activity,
@@ -160,6 +169,7 @@ export {
   Note,
   Notification,
   NotificationTemplate,
+  Opportunity,
   Reminder,
   Role,
   Segment,
