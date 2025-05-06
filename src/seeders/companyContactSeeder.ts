@@ -144,6 +144,8 @@ export const seedCompaniesAndContacts = async (tenantId: string) => {
       const company = await Company.create({
         id: uuidv4(),
         ...companyData,
+        // Générer un chiffre d'affaires aléatoire entre 100K et 50M
+        revenue: Math.floor(Math.random() * 50000000) + 100000,
         statusId,
         assignedToId,
         tenantId,

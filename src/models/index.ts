@@ -82,7 +82,7 @@ ContactModel.belongsToMany(SegmentModel, {
 
 // Relations Company
 CompanyModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
-CompanyModel.belongsTo(StatusModel, { foreignKey: "statusId" })
+CompanyModel.belongsTo(StatusModel, { as: "status", foreignKey: "statusId" })
 CompanyModel.belongsTo(UserModel, { as: "assignedTo", foreignKey: "assignedToId" })
 CompanyModel.hasMany(ContactModel, { foreignKey: "companyId" })
 CompanyModel.hasMany(NoteModel, { foreignKey: "companyId" })

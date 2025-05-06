@@ -38,6 +38,11 @@ export const Company = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    revenue: {
+      type: DataTypes.DECIMAL(15, 2),
+      allowNull: true,
+      comment: "Chiffre d'affaires annuel de l'entreprise",
+    },
     statusId: {
       type: DataTypes.UUID,
       allowNull: false,

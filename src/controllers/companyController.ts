@@ -5,7 +5,10 @@ import { paginatedQuery } from "../utils/pagination"
 export const getAllCompanies = async (ctx: Context) => {
   try {
     const result = await paginatedQuery(Company, ctx, {
-      include: [{ model: Status }, { model: User, as: "assignedTo" }],
+      include: [
+        { model: Status, as: "status" },
+        { model: User, as: "assignedTo" },
+      ],
       where: { tenantId: ctx.state.user.tenantId },
     })
 
@@ -19,7 +22,11 @@ export const getAllCompanies = async (ctx: Context) => {
 export const getCompanyById = async (ctx: Context) => {
   try {
     const company = await Company.findByPk(ctx.params.id, {
-      include: [{ model: Status }, { model: User, as: "assignedTo" }, { model: Contact }],
+      include: [
+        { model: Status, as: "status" },
+        { model: User, as: "assignedTo" },
+        { model: Contact },
+      ],
     })
     if (!company) {
       ctx.status = 404
@@ -39,7 +46,10 @@ export const getCompaniesByTenant = async (ctx: Context) => {
       where: {
         tenantId: ctx.params.tenantId,
       },
-      include: [{ model: Status }, { model: User, as: "assignedTo" }],
+      include: [
+        { model: Status, as: "status" },
+        { model: User, as: "assignedTo" },
+      ],
     })
 
     ctx.body = result
