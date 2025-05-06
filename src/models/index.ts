@@ -9,6 +9,8 @@ import NoteModel, { Note } from "./note"
 import NotificationModel, { Notification } from "./notification"
 import NotificationTemplateModel, { NotificationTemplate } from "./notificationTemplate"
 import OpportunityModel, { Opportunity } from "./opportunity"
+import QuoteModel, { Quote } from "./quote"
+import QuoteItemModel, { QuoteItem } from "./quoteItem"
 import ReminderModel, { Reminder } from "./reminder"
 import RoleModel, { Role } from "./role"
 import SegmentModel, { Segment } from "./segment"
@@ -38,6 +40,7 @@ TenantModel.hasMany(NotificationModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(NotificationTemplateModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(WebhookModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(OpportunityModel, { foreignKey: "tenantId" })
+TenantModel.hasMany(QuoteModel, { foreignKey: "tenantId" })
 
 // Relations User
 UserModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
@@ -158,6 +161,18 @@ OpportunityModel.belongsTo(StatusModel, { foreignKey: "statusId" })
 OpportunityModel.belongsTo(ContactModel, { foreignKey: "contactId" })
 OpportunityModel.belongsTo(CompanyModel, { foreignKey: "companyId" })
 OpportunityModel.belongsTo(UserModel, { as: "assignedTo", foreignKey: "assignedToId" })
+OpportunityModel.hasMany(QuoteModel, { foreignKey: "opportunityId" })
+
+// Relations pour les devis
+QuoteModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
+QuoteModel.belongsTo(OpportunityModel, { foreignKey: "opportunityId" })
+QuoteModel.belongsTo(ContactModel, { foreignKey: "contactId" })
+QuoteModel.belongsTo(CompanyModel, { foreignKey: "companyId" })
+QuoteModel.belongsTo(UserModel, { as: "assignedTo", foreignKey: "assignedToId" })
+QuoteModel.hasMany(QuoteItemModel, { foreignKey: "quoteId", onDelete: "CASCADE" })
+
+// Relations pour les éléments de devis
+QuoteItemModel.belongsTo(QuoteModel, { foreignKey: "quoteId", onDelete: "CASCADE" })
 
 // Export des modèles
 export {
@@ -170,6 +185,8 @@ export {
   Notification,
   NotificationTemplate,
   Opportunity,
+  Quote,
+  QuoteItem,
   Reminder,
   Role,
   Segment,
