@@ -6,6 +6,7 @@ import contactRoutes from "../contactRoutes"
 import integrationsRoutes from "../integrationsRoutes"
 import noteRoutes from "../noteRoutes"
 import notificationRoutes from "../notificationRoutes"
+import quoteRoutes from "../quoteRoutes"
 import reminderRoutes from "../reminderRoutes"
 import roleRoutes from "../roleRoutes"
 import segmentRoutes from "../segmentRoutes"
@@ -71,5 +72,6 @@ configureV1Routes(workflowRoutes)
 configureV1Routes(integrationsRoutes)
 configureV1Routes(notificationRoutes)
 configureV1Routes(webhookRoutes)
+configureV1Routes(quoteRoutes)
 
 export default v1Router

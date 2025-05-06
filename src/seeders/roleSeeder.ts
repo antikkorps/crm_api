@@ -40,6 +40,7 @@ export const seedRoles = async (tenantId: string) => {
         segments: { create: true, read: true, update: true, delete: true },
         reminders: { create: true, read: true, update: true, delete: true },
         opportunities: { create: true, read: true, update: true, delete: true },
+        quotes: { create: true, read: true, update: true, delete: true },
         workflows: {
           create: true,
           read: true,
@@ -65,6 +66,12 @@ export const seedRoles = async (tenantId: string) => {
         activities: { create: true, read: true, update: true, delete: true },
         segments: { create: false, read: true, update: false, delete: false },
         opportunities: { create: true, read: true, update: true, delete: false },
+        quotes: {
+          create: true,
+          read: true,
+          update: true,
+          delete: false,
+        },
         workflows: {
           create: false,
           read: true,
