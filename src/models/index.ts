@@ -88,6 +88,7 @@ CompanyModel.hasMany(ContactModel, { foreignKey: "companyId" })
 CompanyModel.hasMany(NoteModel, { foreignKey: "companyId" })
 CompanyModel.hasMany(ActivityModel, { foreignKey: "companyId" })
 CompanyModel.hasMany(ReminderModel, { foreignKey: "companyId" })
+CompanyModel.hasMany(OpportunityModel, { foreignKey: "companyId" }) // Ajout de cette relation manquante
 
 // Relations Note
 NoteModel.belongsTo(TenantModel, { foreignKey: "tenantId" })

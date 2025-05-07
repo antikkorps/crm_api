@@ -14,6 +14,10 @@ export const Company = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    description: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
     website: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -38,10 +42,15 @@ export const Company = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
-    revenue: {
+    size: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Taille de l'entreprise en nombre d'employés",
+    },
+    globalRevenue: {
       type: DataTypes.DECIMAL(15, 2),
       allowNull: true,
-      comment: "Chiffre d'affaires annuel de l'entreprise",
+      comment: "Chiffre d'affaires annuel global de l'entreprise",
     },
     statusId: {
       type: DataTypes.UUID,
