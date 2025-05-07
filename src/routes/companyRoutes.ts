@@ -5,12 +5,16 @@ import {
   getAllCompanies,
   getCompaniesByTenant,
   getCompanyById,
+  searchCompanies,
   updateCompany,
 } from "../controllers/companyController"
 import { checkPermission } from "../middlewares/roleMiddleware"
 import { protectCrudRoutes } from "../utils/routeProtection"
 
 const router = new Router({ prefix: "/api/companies" })
+
+// Route de recherche avec filtres
+router.get("/search", checkPermission("companies", "read"), searchCompanies)
 
 // Protection des routes CRUD principales
 protectCrudRoutes(router, "companies", {
