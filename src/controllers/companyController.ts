@@ -186,3 +186,93 @@ export const deleteCompany = async (ctx: Context) => {
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
   }
 }
+
+export const searchCompanies = async (ctx: Context) => {
+  try {
+    const { query } = ctx
+    const whereClause: any = {
+      tenantId: ctx.state.user.tenantId,
+    }
+
+    // Ajouter les filtres à partir des paramètres de requête
+    if (query.name) whereClause.name = { [Op.iLike]: `%${query.name}%` }
+    if (query.industry) whereClause.industry = { [Op.iLike]: `%${query.industry}%` }
+    if (query.city) whereClause.city = { [Op.iLike]: `%${query.city}%` }
+    if (query.country) whereClause.country = { [Op.iLike]: `%${query.country}%` }
+    if (query.size) whereClause.size = { [Op.eq]: query.size }
+
+    // Filtrage par globalRevenue (min et max)
+    if (query.minRevenue)
+      whereClause.globalRevenue = {
+        ...whereClause.globalRevenue,
+        [Op.gte]: Number(query.minRevenue),
+      }
+    if (query.maxRevenue)
+      whereClause.globalRevenue = {
+        ...whereClause.globalRevenue,
+        [Op.lte]: Number(query.maxRevenue),
+      }
+
+    // Filtrage par statut
+    if (query.statusId) whereClause.statusId = query.statusId
+
+    // Filtrage par utilisateur assigné
+    if (query.assignedToId) whereClause.assignedToId = query.assignedToId
+
+    // Récupérer les entreprises avec les filtres appliqués
+    const result = await paginatedQuery(Company, ctx, {
+      include: [
+        { model: Status, as: "status" },
+        { model: User, as: "assignedTo" },
+      ],
+      where: whereClause,
+      order: [["name", "ASC"]],
+    })
+
+    // Récupérer les ID de statuts correspondant à "Won" pour calculer le revenu généré
+    if (result.items.length > 0) {
+      const wonStatuses = await Status.findAll({
+        attributes: ["id"],
+        where: {
+          type: "OPPORTUNITY",
+          name: { [Op.iLike]: "%won%" },
+        },
+      })
+
+      const wonStatusIds: string[] = wonStatuses.map(
+        (status) => status.get("id") as string
+      )
+      const companyIds: string[] = result.items.map(
+        (company) => company.get("id") as string
+      )
+
+      // Récupérer les sommes des opportunités gagnées par entreprise
+      const opportunitySums = await Opportunity.findAll({
+        attributes: ["companyId", [sequelize.fn("SUM", sequelize.col("value")), "total"]],
+        where: {
+          companyId: { [Op.in]: companyIds },
+          statusId: wonStatusIds.length > 0 ? { [Op.in]: wonStatusIds } : undefined,
+        },
+        group: ["companyId"],
+      })
+
+      // Créer un Map pour un accès rapide aux totaux par ID d'entreprise
+      const revenueByCompanyId = new Map()
+      opportunitySums.forEach((sum) => {
+        revenueByCompanyId.set(sum.get("companyId"), sum.get("total"))
+      })
+
+      // Ajouter le revenu généré à chaque entreprise
+      result.items = result.items.map((company) => {
+        const companyJson = company.toJSON()
+        companyJson.generatedRevenue = revenueByCompanyId.get(company.get("id")) || 0
+        return companyJson
+      })
+    }
+
+    ctx.body = result
+  } catch (error: unknown) {
+    ctx.status = 500
+    ctx.body = { error: error instanceof Error ? error.message : String(error) }
+  }
+}
