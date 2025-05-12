@@ -2,6 +2,7 @@ import { sequelize } from "../config/database"
 // Importation des modèles avec leur export par défaut
 import ActivityModel, { Activity } from "./activity"
 import CompanyModel, { Company } from "./company"
+import CompanySpecialityModel, { CompanySpeciality } from "./companySpeciality"
 import ContactModel, { Contact } from "./contact"
 import ContactSegmentModel, { ContactSegment } from "./contactSegment"
 import ExternalIntegrationModel, { ExternalIntegration } from "./externalIntegration"
@@ -14,6 +15,7 @@ import QuoteItemModel, { QuoteItem } from "./quoteItem"
 import ReminderModel, { Reminder } from "./reminder"
 import RoleModel, { Role } from "./role"
 import SegmentModel, { Segment } from "./segment"
+import SpecialityModel, { Speciality } from "./speciality"
 import StatusModel, { Status } from "./status"
 import TenantModel, { Tenant } from "./tenant"
 import UserModel, { User } from "./user"
@@ -88,7 +90,19 @@ CompanyModel.hasMany(ContactModel, { foreignKey: "companyId" })
 CompanyModel.hasMany(NoteModel, { foreignKey: "companyId" })
 CompanyModel.hasMany(ActivityModel, { foreignKey: "companyId" })
 CompanyModel.hasMany(ReminderModel, { foreignKey: "companyId" })
-CompanyModel.hasMany(OpportunityModel, { foreignKey: "companyId" }) // Ajout de cette relation manquante
+CompanyModel.hasMany(OpportunityModel, { foreignKey: "companyId" })
+CompanyModel.belongsToMany(SpecialityModel, {
+  through: CompanySpecialityModel,
+  foreignKey: "companyId",
+  otherKey: "specialityId",
+})
+
+// Relations Speciality
+SpecialityModel.belongsToMany(CompanyModel, {
+  through: CompanySpecialityModel,
+  foreignKey: "specialityId",
+  otherKey: "companyId",
+})
 
 // Relations Note
 NoteModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
@@ -179,6 +193,7 @@ QuoteItemModel.belongsTo(QuoteModel, { foreignKey: "quoteId", onDelete: "CASCADE
 export {
   Activity,
   Company,
+  CompanySpeciality,
   Contact,
   ContactSegment,
   ExternalIntegration,
@@ -192,6 +207,7 @@ export {
   Role,
   Segment,
   sequelize,
+  Speciality,
   Status,
   Tenant,
   User,

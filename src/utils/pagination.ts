@@ -5,6 +5,7 @@ export interface PaginationParams {
   page: number
   limit: number
   offset: number
+  disabled?: boolean
 }
 
 export interface PaginatedResponse<T> {
@@ -29,6 +30,18 @@ export const extractPaginationParams = (
   ctx: Context,
   defaultLimit: number = 10
 ): PaginationParams => {
+  // Vérifier si la pagination est explicitement désactivée
+  const requestedLimit = parseInt(ctx.query.limit as string)
+
+  if (requestedLimit === -1) {
+    return {
+      page: 1,
+      limit: null as any, // Pour sequelize, null signifie "pas de limite"
+      offset: 0,
+      disabled: true,
+    }
+  }
+  // Pagination par défaut
   const page = Math.max(1, parseInt(ctx.query.page as string) || 1)
   const limit = Math.max(
     1,
@@ -36,7 +49,7 @@ export const extractPaginationParams = (
   )
   const offset = (page - 1) * limit
 
-  return { page, limit, offset }
+  return { page, limit, offset, disabled: false }
 }
 
 /**
@@ -128,12 +141,29 @@ export const paginatedQuery = async <T extends Model>(
   // Ajouter les paramètres de pagination aux options de requête
   const options = {
     ...findOptions,
-    limit: params.limit,
-    offset: params.offset,
+  }
+
+  if (!params.disabled) {
+    options.limit = params.limit
+    options.offset = params.offset
   }
 
   // Exécuter la requête avec pagination
   const { rows, count } = await model.findAndCountAll(options)
+
+  if (params.disabled) {
+    return {
+      items: rows as T[],
+      pagination: {
+        totalItems: count,
+        totalPages: 1,
+        currentPage: 1,
+        itemsPerPage: count,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    }
+  }
 
   // Construire la réponse paginée
   return buildPaginatedResponse<T>(rows as T[], count, params)

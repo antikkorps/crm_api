@@ -1,7 +1,7 @@
 import { Context } from "koa"
 import { Op } from "sequelize"
 import { sequelize } from "../config/database"
-import { Company, Contact, Opportunity, Status, User } from "../models"
+import { Company, Contact, Opportunity, Speciality, Status, User } from "../models"
 import { paginatedQuery } from "../utils/pagination"
 
 export const getAllCompanies = async (ctx: Context) => {
@@ -28,6 +28,8 @@ export const getAllCompanies = async (ctx: Context) => {
       include: [
         { model: Status, as: "status" },
         { model: User, as: "assignedTo" },
+        { model: Speciality, through: { attributes: [] } },
+        { model: Contact },
       ],
       where: { tenantId: ctx.state.user.tenantId },
     })
@@ -96,6 +98,7 @@ export const getCompanyById = async (ctx: Context) => {
         { model: Status, as: "status" },
         { model: User, as: "assignedTo" },
         { model: Contact },
+        { model: Speciality, through: { attributes: [] } },
       ],
     })
 
@@ -134,6 +137,8 @@ export const getCompaniesByTenant = async (ctx: Context) => {
       include: [
         { model: Status, as: "status" },
         { model: User, as: "assignedTo" },
+        { model: Speciality, through: { attributes: [] } },
+        { model: Contact },
       ],
     })
 
@@ -146,9 +151,24 @@ export const getCompaniesByTenant = async (ctx: Context) => {
 
 export const createCompany = async (ctx: Context) => {
   try {
-    const company = await Company.create((ctx.request as any).body)
+    const requestBody = (ctx.request as any).body
+    const { specialitiesIds, ...companyData } = requestBody
+
+    // Créer l'entreprise
+    const company = await Company.create(companyData)
+
+    // Associer les spécialités si elles sont fournies
+    if (specialitiesIds && specialitiesIds.length > 0) {
+      await company.setSpecialities(specialitiesIds)
+    }
+
+    // Récupérer l'entreprise avec les spécialités associées
+    const companyWithSpecialities = await Company.findByPk(company.get("id"), {
+      include: [{ model: Speciality }],
+    })
+
     ctx.status = 201
-    ctx.body = company
+    ctx.body = companyWithSpecialities
   } catch (error: unknown) {
     ctx.status = 400
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
@@ -157,14 +177,36 @@ export const createCompany = async (ctx: Context) => {
 
 export const updateCompany = async (ctx: Context) => {
   try {
+    const requestBody = (ctx.request as any).body
+    const { specialitiesIds, ...companyData } = requestBody
+
     const company = await Company.findByPk(ctx.params.id)
     if (!company) {
       ctx.status = 404
       ctx.body = { error: "Company not found" }
       return
     }
-    await company.update((ctx.request as any).body)
-    ctx.body = company
+
+    // Mettre à jour les données de l'entreprise
+    await company.update(companyData)
+
+    // Mettre à jour les spécialités si fournies
+    if (specialitiesIds !== undefined) {
+      // @ts-ignore - On ignore l'erreur de type car cette méthode est générée par Sequelize
+      await company.setSpecialities(specialitiesIds || [])
+    }
+
+    // Récupérer l'entreprise mise à jour avec les spécialités associées
+    const updatedCompany = await Company.findByPk(ctx.params.id, {
+      include: [
+        { model: Status, as: "status" },
+        { model: User, as: "assignedTo" },
+        { model: Speciality, through: { attributes: [] } },
+        { model: Contact },
+      ],
+    })
+
+    ctx.body = updatedCompany
   } catch (error: unknown) {
     ctx.status = 400
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
@@ -193,6 +235,7 @@ export const searchCompanies = async (ctx: Context) => {
     const whereClause: any = {
       tenantId: ctx.state.user.tenantId,
     }
+    const includeModels = []
 
     // Ajouter les filtres à partir des paramètres de requête
     if (query.name) whereClause.name = { [Op.iLike]: `%${query.name}%` }
@@ -213,18 +256,101 @@ export const searchCompanies = async (ctx: Context) => {
         [Op.lte]: Number(query.maxRevenue),
       }
 
-    // Filtrage par statut
-    if (query.statusId) whereClause.statusId = query.statusId
+    // Filtrage par statut - accepter à la fois statusId et status
+    if (query.statusId) {
+      whereClause.statusId = query.statusId
+    } else if (query.status) {
+      // Filtrer par le nom du statut
+      includeModels.push({
+        model: Status,
+        as: "status",
+        where: { name: { [Op.iLike]: `%${query.status}%` } },
+        required: true,
+      })
+    }
 
     // Filtrage par utilisateur assigné
     if (query.assignedToId) whereClause.assignedToId = query.assignedToId
 
+    // Ajouter filtre pour les salles d'opération
+    // Traiter operatingRooms null comme 0 pour le filtrage
+    if (query.minOperatingRooms !== undefined || query.maxOperatingRooms !== undefined) {
+      // Créer une condition qui traite NULL comme 0
+      const operatingRoomsCondition = sequelize.literal(
+        `COALESCE("Company"."operatingRooms", 0)`
+      )
+
+      if (query.minOperatingRooms !== undefined) {
+        whereClause.operatingRooms = sequelize.where(operatingRoomsCondition, {
+          [Op.gte]: Number(query.minOperatingRooms),
+        })
+      }
+
+      if (query.maxOperatingRooms !== undefined) {
+        if (whereClause.operatingRooms) {
+          // Si déjà défini par minOperatingRooms, ajouter la condition max
+          whereClause.operatingRooms = sequelize.and(
+            whereClause.operatingRooms,
+            sequelize.where(operatingRoomsCondition, {
+              [Op.lte]: Number(query.maxOperatingRooms),
+            })
+          )
+        } else {
+          // Sinon, définir directement
+          whereClause.operatingRooms = sequelize.where(operatingRoomsCondition, {
+            [Op.lte]: Number(query.maxOperatingRooms),
+          })
+        }
+      }
+    }
+
+    // Filtrer par spécialités - accepter plusieurs formats de paramètres
+    const specialityFilter =
+      query.speciality ||
+      query.specialityId ||
+      query.specialities ||
+      query.specialitiesIds
+
+    if (specialityFilter) {
+      let specialityCondition: any = {}
+
+      // Si c'est un ID
+      if (
+        typeof specialityFilter === "string" &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          specialityFilter
+        )
+      ) {
+        specialityCondition.id = specialityFilter
+      }
+      // Sinon, chercher par nom
+      else {
+        specialityCondition.name = { [Op.iLike]: `%${specialityFilter}%` }
+      }
+
+      // Pour les relations many-to-many, assurez-vous que required: true pour forcer l'inner join
+      includeModels.push({
+        model: Speciality,
+        where: specialityCondition,
+        through: { attributes: [] },
+        required: true, // Force inner join pour filtrer correctement
+      })
+    } else {
+      // Toujours inclure les spécialités, mais sans filtre
+      includeModels.push({
+        model: Speciality,
+        through: { attributes: [] },
+        required: false, // Permet left join pour inclure toutes les entreprises
+      })
+    }
+
+    // Vérifier si nous avons déjà un include pour Status dans includeModels
+    const hasStatusInclude = includeModels.some((model) => model.model === Status)
+    const statusInclude = hasStatusInclude ? [] : [{ model: Status, as: "status" }]
+
     // Récupérer les entreprises avec les filtres appliqués
     const result = await paginatedQuery(Company, ctx, {
-      include: [
-        { model: Status, as: "status" },
-        { model: User, as: "assignedTo" },
-      ],
+      include: [...statusInclude, { model: User, as: "assignedTo" }, ...includeModels],
       where: whereClause,
       order: [["name", "ASC"]],
     })
@@ -271,6 +397,92 @@ export const searchCompanies = async (ctx: Context) => {
     }
 
     ctx.body = result
+  } catch (error: unknown) {
+    ctx.status = 500
+    ctx.body = { error: error instanceof Error ? error.message : String(error) }
+  }
+}
+/**
+ * Ajouter des spécialités à une entreprise
+ */
+export const addSpecialitiesToCompany = async (ctx: Context) => {
+  try {
+    const companyId = ctx.params.id
+    const { specialityIds } = (ctx.request as any).body
+
+    if (!specialityIds || !Array.isArray(specialityIds) || specialityIds.length === 0) {
+      ctx.status = 400
+      ctx.body = { error: "specialityIds doit être un tableau non vide d'identifiants" }
+      return
+    }
+
+    // Vérifier que l'entreprise existe
+    const company = await Company.findByPk(companyId)
+    if (!company) {
+      ctx.status = 404
+      ctx.body = { error: "Entreprise non trouvée" }
+      return
+    }
+
+    // Vérifier que toutes les spécialités existent
+    const specialities = await Speciality.findAll({
+      where: { id: { [Op.in]: specialityIds } },
+    })
+
+    if (specialities.length !== specialityIds.length) {
+      ctx.status = 400
+      ctx.body = { error: "Une ou plusieurs spécialités n'existent pas" }
+      return
+    }
+
+    // Ajouter les spécialités à l'entreprise
+    // @ts-ignore - On ignore l'erreur de type car cette méthode est générée par Sequelize
+    await company.addSpecialities(specialityIds)
+
+    // Récupérer l'entreprise mise à jour avec ses spécialités
+    const updatedCompany = await Company.findByPk(companyId, {
+      include: [{ model: Speciality }],
+    })
+
+    ctx.body = updatedCompany
+  } catch (error: unknown) {
+    ctx.status = 500
+    ctx.body = { error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+/**
+ * Supprimer des spécialités d'une entreprise
+ */
+export const removeSpecialitiesFromCompany = async (ctx: Context) => {
+  try {
+    const companyId = ctx.params.id
+    const { specialityIds } = (ctx.request as any).body
+
+    if (!specialityIds || !Array.isArray(specialityIds) || specialityIds.length === 0) {
+      ctx.status = 400
+      ctx.body = { error: "specialityIds doit être un tableau non vide d'identifiants" }
+      return
+    }
+
+    // Vérifier que l'entreprise existe
+    const company = await Company.findByPk(companyId)
+    if (!company) {
+      ctx.status = 404
+      ctx.body = { error: "Entreprise non trouvée" }
+      return
+    }
+
+    // Supprimer les spécialités de l'entreprise
+    // @ts-ignore - On ignore l'erreur de type car cette méthode est générée par Sequelize
+    await company.removeSpecialities(specialityIds)
+
+    // Récupérer l'entreprise mise à jour avec ses spécialités
+    const updatedCompany = await Company.findByPk(companyId, {
+      include: [{ model: Speciality }],
+    })
+
+    ctx.body = updatedCompany
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
