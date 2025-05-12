@@ -1,10 +1,12 @@
 import Router from "koa-router"
 import {
+  addSpecialitiesToCompany,
   createCompany,
   deleteCompany,
   getAllCompanies,
   getCompaniesByTenant,
   getCompanyById,
+  removeSpecialitiesFromCompany,
   searchCompanies,
   updateCompany,
 } from "../controllers/companyController"
@@ -30,6 +32,19 @@ router.get(
   "/tenant/:tenantId",
   checkPermission("companies", "read"),
   getCompaniesByTenant
+)
+
+// Routes pour gérer les spécialités d'une entreprise
+router.post(
+  "/:id/specialities",
+  checkPermission("companies", "update"),
+  addSpecialitiesToCompany
+)
+
+router.delete(
+  "/:id/specialities",
+  checkPermission("companies", "update"),
+  removeSpecialitiesFromCompany
 )
 
 export default router

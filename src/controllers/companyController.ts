@@ -28,6 +28,8 @@ export const getAllCompanies = async (ctx: Context) => {
       include: [
         { model: Status, as: "status" },
         { model: User, as: "assignedTo" },
+        { model: Speciality, through: { attributes: [] } },
+        { model: Contact },
       ],
       where: { tenantId: ctx.state.user.tenantId },
     })
@@ -96,7 +98,7 @@ export const getCompanyById = async (ctx: Context) => {
         { model: Status, as: "status" },
         { model: User, as: "assignedTo" },
         { model: Contact },
-        { model: Speciality },
+        { model: Speciality, through: { attributes: [] } },
       ],
     })
 
@@ -135,6 +137,8 @@ export const getCompaniesByTenant = async (ctx: Context) => {
       include: [
         { model: Status, as: "status" },
         { model: User, as: "assignedTo" },
+        { model: Speciality, through: { attributes: [] } },
+        { model: Contact },
       ],
     })
 
@@ -197,7 +201,8 @@ export const updateCompany = async (ctx: Context) => {
       include: [
         { model: Status, as: "status" },
         { model: User, as: "assignedTo" },
-        { model: Speciality },
+        { model: Speciality, through: { attributes: [] } },
+        { model: Contact },
       ],
     })
 
@@ -279,7 +284,7 @@ export const searchCompanies = async (ctx: Context) => {
         where: {
           name: { [Op.iLike]: `%${query.speciality}%` },
         },
-        through: { attributes: [] }, // Ne pas inclure la table de jonction dans les résultats
+        through: { attributes: [] },
         required: true,
       })
     }
@@ -337,6 +342,92 @@ export const searchCompanies = async (ctx: Context) => {
     }
 
     ctx.body = result
+  } catch (error: unknown) {
+    ctx.status = 500
+    ctx.body = { error: error instanceof Error ? error.message : String(error) }
+  }
+}
+/**
+ * Ajouter des spécialités à une entreprise
+ */
+export const addSpecialitiesToCompany = async (ctx: Context) => {
+  try {
+    const companyId = ctx.params.id
+    const { specialityIds } = (ctx.request as any).body
+
+    if (!specialityIds || !Array.isArray(specialityIds) || specialityIds.length === 0) {
+      ctx.status = 400
+      ctx.body = { error: "specialityIds doit être un tableau non vide d'identifiants" }
+      return
+    }
+
+    // Vérifier que l'entreprise existe
+    const company = await Company.findByPk(companyId)
+    if (!company) {
+      ctx.status = 404
+      ctx.body = { error: "Entreprise non trouvée" }
+      return
+    }
+
+    // Vérifier que toutes les spécialités existent
+    const specialities = await Speciality.findAll({
+      where: { id: { [Op.in]: specialityIds } },
+    })
+
+    if (specialities.length !== specialityIds.length) {
+      ctx.status = 400
+      ctx.body = { error: "Une ou plusieurs spécialités n'existent pas" }
+      return
+    }
+
+    // Ajouter les spécialités à l'entreprise
+    // @ts-ignore - On ignore l'erreur de type car cette méthode est générée par Sequelize
+    await company.addSpecialities(specialityIds)
+
+    // Récupérer l'entreprise mise à jour avec ses spécialités
+    const updatedCompany = await Company.findByPk(companyId, {
+      include: [{ model: Speciality }],
+    })
+
+    ctx.body = updatedCompany
+  } catch (error: unknown) {
+    ctx.status = 500
+    ctx.body = { error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+/**
+ * Supprimer des spécialités d'une entreprise
+ */
+export const removeSpecialitiesFromCompany = async (ctx: Context) => {
+  try {
+    const companyId = ctx.params.id
+    const { specialityIds } = (ctx.request as any).body
+
+    if (!specialityIds || !Array.isArray(specialityIds) || specialityIds.length === 0) {
+      ctx.status = 400
+      ctx.body = { error: "specialityIds doit être un tableau non vide d'identifiants" }
+      return
+    }
+
+    // Vérifier que l'entreprise existe
+    const company = await Company.findByPk(companyId)
+    if (!company) {
+      ctx.status = 404
+      ctx.body = { error: "Entreprise non trouvée" }
+      return
+    }
+
+    // Supprimer les spécialités de l'entreprise
+    // @ts-ignore - On ignore l'erreur de type car cette méthode est générée par Sequelize
+    await company.removeSpecialities(specialityIds)
+
+    // Récupérer l'entreprise mise à jour avec ses spécialités
+    const updatedCompany = await Company.findByPk(companyId, {
+      include: [{ model: Speciality }],
+    })
+
+    ctx.body = updatedCompany
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }

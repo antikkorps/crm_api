@@ -10,6 +10,7 @@ import quoteRoutes from "../quoteRoutes"
 import reminderRoutes from "../reminderRoutes"
 import roleRoutes from "../roleRoutes"
 import segmentRoutes from "../segmentRoutes"
+import specialityRoutes from "../specialityRoutes"
 import statusRoutes from "../statusRoutes"
 import tenantRoutes from "../tenantRoutes"
 import userRoutes from "../userRoutes"
@@ -73,5 +74,6 @@ configureV1Routes(integrationsRoutes)
 configureV1Routes(notificationRoutes)
 configureV1Routes(webhookRoutes)
 configureV1Routes(quoteRoutes)
+configureV1Routes(specialityRoutes)
 
 export default v1Router
