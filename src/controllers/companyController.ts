@@ -256,46 +256,101 @@ export const searchCompanies = async (ctx: Context) => {
         [Op.lte]: Number(query.maxRevenue),
       }
 
-    // Filtrage par statut
-    if (query.statusId) whereClause.statusId = query.statusId
+    // Filtrage par statut - accepter à la fois statusId et status
+    if (query.statusId) {
+      whereClause.statusId = query.statusId
+    } else if (query.status) {
+      // Filtrer par le nom du statut
+      includeModels.push({
+        model: Status,
+        as: "status",
+        where: { name: { [Op.iLike]: `%${query.status}%` } },
+        required: true,
+      })
+    }
 
     // Filtrage par utilisateur assigné
     if (query.assignedToId) whereClause.assignedToId = query.assignedToId
 
     // Ajouter filtre pour les salles d'opération
-    if (query.minOperatingRooms !== undefined) {
-      whereClause.operatingRooms = {
-        ...whereClause.operatingRooms,
-        [Op.gte]: Number(query.minOperatingRooms),
+    // Traiter operatingRooms null comme 0 pour le filtrage
+    if (query.minOperatingRooms !== undefined || query.maxOperatingRooms !== undefined) {
+      // Créer une condition qui traite NULL comme 0
+      const operatingRoomsCondition = sequelize.literal(
+        `COALESCE("Company"."operatingRooms", 0)`
+      )
+
+      if (query.minOperatingRooms !== undefined) {
+        whereClause.operatingRooms = sequelize.where(operatingRoomsCondition, {
+          [Op.gte]: Number(query.minOperatingRooms),
+        })
+      }
+
+      if (query.maxOperatingRooms !== undefined) {
+        if (whereClause.operatingRooms) {
+          // Si déjà défini par minOperatingRooms, ajouter la condition max
+          whereClause.operatingRooms = sequelize.and(
+            whereClause.operatingRooms,
+            sequelize.where(operatingRoomsCondition, {
+              [Op.lte]: Number(query.maxOperatingRooms),
+            })
+          )
+        } else {
+          // Sinon, définir directement
+          whereClause.operatingRooms = sequelize.where(operatingRoomsCondition, {
+            [Op.lte]: Number(query.maxOperatingRooms),
+          })
+        }
       }
     }
 
-    if (query.maxOperatingRooms !== undefined) {
-      whereClause.operatingRooms = {
-        ...whereClause.operatingRooms,
-        [Op.lte]: Number(query.maxOperatingRooms),
-      }
-    }
+    // Filtrer par spécialités - accepter plusieurs formats de paramètres
+    const specialityFilter =
+      query.speciality ||
+      query.specialityId ||
+      query.specialities ||
+      query.specialitiesIds
 
-    // Filtrer par spécialités
-    if (query.speciality) {
+    if (specialityFilter) {
+      let specialityCondition: any = {}
+
+      // Si c'est un ID
+      if (
+        typeof specialityFilter === "string" &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          specialityFilter
+        )
+      ) {
+        specialityCondition.id = specialityFilter
+      }
+      // Sinon, chercher par nom
+      else {
+        specialityCondition.name = { [Op.iLike]: `%${specialityFilter}%` }
+      }
+
+      // Pour les relations many-to-many, assurez-vous que required: true pour forcer l'inner join
       includeModels.push({
         model: Speciality,
-        where: {
-          name: { [Op.iLike]: `%${query.speciality}%` },
-        },
+        where: specialityCondition,
         through: { attributes: [] },
-        required: true,
+        required: true, // Force inner join pour filtrer correctement
+      })
+    } else {
+      // Toujours inclure les spécialités, mais sans filtre
+      includeModels.push({
+        model: Speciality,
+        through: { attributes: [] },
+        required: false, // Permet left join pour inclure toutes les entreprises
       })
     }
 
+    // Vérifier si nous avons déjà un include pour Status dans includeModels
+    const hasStatusInclude = includeModels.some((model) => model.model === Status)
+    const statusInclude = hasStatusInclude ? [] : [{ model: Status, as: "status" }]
+
     // Récupérer les entreprises avec les filtres appliqués
     const result = await paginatedQuery(Company, ctx, {
-      include: [
-        { model: Status, as: "status" },
-        { model: User, as: "assignedTo" },
-        ...includeModels,
-      ],
+      include: [...statusInclude, { model: User, as: "assignedTo" }, ...includeModels],
       where: whereClause,
       order: [["name", "ASC"]],
     })
