@@ -5,6 +5,7 @@ import { seedNotes } from "./noteSeeder"
 import { seedOpportunities } from "./opportunitySeeder"
 import { seedQuotes } from "./quoteSeeder"
 import { seedRoles } from "./roleSeeder"
+import { seedSpecialities } from "./specialitySeeder"
 import seedStatuses from "./statusSeeder"
 import { seedTenants } from "./tenantSeeder"
 import { seedUsers } from "./userSeeder"
@@ -88,6 +89,10 @@ export const seedDatabase = async () => {
     // Créer des devis
     await seedQuotes(tenantId)
     console.log("Completed seeding quotes")
+
+    // Créer des spécialités
+    await seedSpecialities(tenantId)
+    console.log("Completed seeding specialities")
 
     console.log("Database seeding completed successfully")
   } catch (error) {

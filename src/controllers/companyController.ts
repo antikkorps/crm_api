@@ -1,7 +1,7 @@
 import { Context } from "koa"
 import { Op } from "sequelize"
 import { sequelize } from "../config/database"
-import { Company, Contact, Opportunity, Status, User } from "../models"
+import { Company, Contact, Opportunity, Speciality, Status, User } from "../models"
 import { paginatedQuery } from "../utils/pagination"
 
 export const getAllCompanies = async (ctx: Context) => {
@@ -96,6 +96,7 @@ export const getCompanyById = async (ctx: Context) => {
         { model: Status, as: "status" },
         { model: User, as: "assignedTo" },
         { model: Contact },
+        { model: Speciality },
       ],
     })
 
@@ -146,9 +147,24 @@ export const getCompaniesByTenant = async (ctx: Context) => {
 
 export const createCompany = async (ctx: Context) => {
   try {
-    const company = await Company.create((ctx.request as any).body)
+    const requestBody = (ctx.request as any).body
+    const { specialitiesIds, ...companyData } = requestBody
+
+    // Créer l'entreprise
+    const company = await Company.create(companyData)
+
+    // Associer les spécialités si elles sont fournies
+    if (specialitiesIds && specialitiesIds.length > 0) {
+      await company.setSpecialities(specialitiesIds)
+    }
+
+    // Récupérer l'entreprise avec les spécialités associées
+    const companyWithSpecialities = await Company.findByPk(company.get("id"), {
+      include: [{ model: Speciality }],
+    })
+
     ctx.status = 201
-    ctx.body = company
+    ctx.body = companyWithSpecialities
   } catch (error: unknown) {
     ctx.status = 400
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
@@ -157,14 +173,35 @@ export const createCompany = async (ctx: Context) => {
 
 export const updateCompany = async (ctx: Context) => {
   try {
+    const requestBody = (ctx.request as any).body
+    const { specialitiesIds, ...companyData } = requestBody
+
     const company = await Company.findByPk(ctx.params.id)
     if (!company) {
       ctx.status = 404
       ctx.body = { error: "Company not found" }
       return
     }
-    await company.update((ctx.request as any).body)
-    ctx.body = company
+
+    // Mettre à jour les données de l'entreprise
+    await company.update(companyData)
+
+    // Mettre à jour les spécialités si fournies
+    if (specialitiesIds !== undefined) {
+      // @ts-ignore - On ignore l'erreur de type car cette méthode est générée par Sequelize
+      await company.setSpecialities(specialitiesIds || [])
+    }
+
+    // Récupérer l'entreprise mise à jour avec les spécialités associées
+    const updatedCompany = await Company.findByPk(ctx.params.id, {
+      include: [
+        { model: Status, as: "status" },
+        { model: User, as: "assignedTo" },
+        { model: Speciality },
+      ],
+    })
+
+    ctx.body = updatedCompany
   } catch (error: unknown) {
     ctx.status = 400
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
@@ -193,6 +230,7 @@ export const searchCompanies = async (ctx: Context) => {
     const whereClause: any = {
       tenantId: ctx.state.user.tenantId,
     }
+    const includeModels = []
 
     // Ajouter les filtres à partir des paramètres de requête
     if (query.name) whereClause.name = { [Op.iLike]: `%${query.name}%` }
@@ -219,11 +257,39 @@ export const searchCompanies = async (ctx: Context) => {
     // Filtrage par utilisateur assigné
     if (query.assignedToId) whereClause.assignedToId = query.assignedToId
 
+    // Ajouter filtre pour les salles d'opération
+    if (query.minOperatingRooms !== undefined) {
+      whereClause.operatingRooms = {
+        ...whereClause.operatingRooms,
+        [Op.gte]: Number(query.minOperatingRooms),
+      }
+    }
+
+    if (query.maxOperatingRooms !== undefined) {
+      whereClause.operatingRooms = {
+        ...whereClause.operatingRooms,
+        [Op.lte]: Number(query.maxOperatingRooms),
+      }
+    }
+
+    // Filtrer par spécialités
+    if (query.speciality) {
+      includeModels.push({
+        model: Speciality,
+        where: {
+          name: { [Op.iLike]: `%${query.speciality}%` },
+        },
+        through: { attributes: [] }, // Ne pas inclure la table de jonction dans les résultats
+        required: true,
+      })
+    }
+
     // Récupérer les entreprises avec les filtres appliqués
     const result = await paginatedQuery(Company, ctx, {
       include: [
         { model: Status, as: "status" },
         { model: User, as: "assignedTo" },
+        ...includeModels,
       ],
       where: whereClause,
       order: [["name", "ASC"]],
