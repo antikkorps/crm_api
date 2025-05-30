@@ -15,7 +15,7 @@ export const Status = sequelize.define(
       allowNull: false,
     },
     type: {
-      type: DataTypes.ENUM("CONTACT", "COMPANY", "OPPORTUNITY"),
+      type: DataTypes.ENUM("CONTACT", "COMPANY", "OPPORTUNITY", "QUOTES"),
       allowNull: false,
     },
     color: {
