@@ -1,9 +1,32 @@
 import { Context } from "koa"
 import { Op } from "sequelize"
-import { Company, Contact, Opportunity, Product, Quote, QuoteItem, User } from "../models"
-import { QuoteStatus } from "../models/quote"
+import { sequelize } from "../config/database"
+import {
+  Company,
+  Contact,
+  Opportunity,
+  Product,
+  Quote,
+  QuoteHistory,
+  QuoteItem,
+  User,
+} from "../models"
+import { calculateQuoteTotals } from "../services/quoteCalculationService"
 import { BadRequestError, NotFoundError } from "../utils/errors"
 import { buildPaginatedResponse, extractPaginationParams } from "../utils/pagination"
+
+/**
+ * QuoteStatus est un enum qui définit les statuts possibles d'un devis
+ */
+export enum QuoteStatus {
+  DRAFT = "DRAFT", // Brouillon
+  SENT = "SENT", // Envoyé au client
+  ACCEPTED = "ACCEPTED", // Accepté par le client
+  REJECTED = "REJECTED", // Refusé par le client
+  EXPIRED = "EXPIRED", // Expiré (date de validité dépassée)
+  CONVERTED = "CONVERTED", // Converti en facture/commande
+  CANCELLED = "CANCELLED", // Annulé
+}
 
 /**
  * Récupérer tous les devis avec pagination
@@ -144,8 +167,12 @@ export const getQuoteById = async (ctx: Context) => {
  * Créer un nouveau devis
  */
 export const createQuote = async (ctx: Context) => {
+  // Utiliser une transaction pour garantir l'atomicité des opérations
+  const transaction = await sequelize.transaction()
+
   try {
     const tenantId = ctx.state.user.tenantId
+    const userId = ctx.state.user.id
     const {
       title,
       description,
@@ -153,6 +180,7 @@ export const createQuote = async (ctx: Context) => {
       validUntil,
       discountAmount,
       discountType,
+      taxRate,
       notes,
       terms,
       opportunityId,
@@ -168,76 +196,73 @@ export const createQuote = async (ctx: Context) => {
     }
 
     // Créer le devis de base
-    const quote = await Quote.create({
-      title,
-      description,
-      status: status || QuoteStatus.DRAFT,
-      validUntil: validUntil ? new Date(validUntil) : undefined,
-      discountAmount,
-      discountType,
-      notes,
-      terms,
-      opportunityId,
-      contactId,
-      companyId,
-      assignedToId: assignedToId || ctx.state.user.id,
-      tenantId,
-      totalAmount: 0, // Sera calculé après l'ajout des éléments
-      taxes: 0, // Sera calculé après l'ajout des éléments
-    })
+    const quote = await Quote.create(
+      {
+        title,
+        description,
+        status: status || QuoteStatus.DRAFT,
+        validUntil: validUntil ? new Date(validUntil) : undefined,
+        discountAmount,
+        discountType,
+        taxRate,
+        notes,
+        terms,
+        opportunityId,
+        contactId,
+        companyId,
+        assignedToId: assignedToId || userId,
+        tenantId,
+        totalAmount: 0, // Sera calculé après l'ajout des éléments
+        taxes: 0, // Sera calculé après l'ajout des éléments
+      },
+      { transaction }
+    )
 
     // Ajouter les éléments du devis
+    const quoteItems = []
     if (items && items.length > 0) {
-      const quoteItems = await Promise.all(
-        items.map(async (item: any, index: number) => {
-          // Si un productId est fourni, récupérer les données du produit
-          if (item.productId) {
-            const product = await Product.findByPk(item.productId)
-            if (product) {
-              // Utiliser les données du produit si l'élément n'a pas ses propres valeurs
-              item.description = item.description || product.get("description")
-              item.unitPrice = item.unitPrice || product.get("unitPrice")
-              item.taxRate =
-                item.taxRate !== undefined ? item.taxRate : product.get("taxRate")
-            }
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        // Si un productId est fourni, récupérer les données du produit
+        if (item.productId) {
+          const product = await Product.findByPk(item.productId, { transaction })
+          if (product) {
+            // Utiliser les données du produit si l'élément n'a pas ses propres valeurs
+            item.description = item.description || product.get("description")
+            item.unitPrice = item.unitPrice || product.get("unitPrice")
+            item.taxRate =
+              item.taxRate !== undefined ? item.taxRate : product.get("taxRate")
           }
-
-          return QuoteItem.create({
-            ...item,
-            position: index,
-            quoteId: quote.id,
-          })
-        })
-      )
-
-      // Calculer le total du devis
-      const totalBeforeTax = quoteItems.reduce(
-        (sum, item) => sum + Number(item.totalPrice),
-        0
-      )
-      const totalTaxes = quoteItems.reduce(
-        (sum, item) =>
-          sum +
-          (Number(item.unitPrice) * Number(item.quantity) * Number(item.taxRate || 0)) /
-            100,
-        0
-      )
-
-      // Appliquer la remise globale si nécessaire
-      let finalTotal = totalBeforeTax
-      if (discountAmount) {
-        if (discountType === "PERCENTAGE") {
-          finalTotal = totalBeforeTax * (1 - Number(discountAmount) / 100)
-        } else {
-          finalTotal = totalBeforeTax - Number(discountAmount)
         }
+
+        const quoteItem = await QuoteItem.create(
+          {
+            ...item,
+            position: i,
+            quoteId: quote.id,
+          },
+          { transaction }
+        )
+
+        quoteItems.push(quoteItem)
       }
 
+      // Utiliser le service de calcul pour obtenir les totaux
+      const calculatedTotals = calculateQuoteTotals(
+        quoteItems,
+        discountAmount,
+        discountType,
+        taxRate
+      )
+
       // Mettre à jour les totaux du devis
-      await quote.update({
-        totalAmount: finalTotal,
-        taxes: totalTaxes,
-      })
+      await quote.update(
+        {
+          totalAmount: calculatedTotals.totalAmount,
+          taxes: calculatedTotals.taxAmount,
+        },
+        { transaction }
+      )
     }
 
     // Récupérer le devis complet avec ses éléments
@@ -254,11 +279,17 @@ export const createQuote = async (ctx: Context) => {
           ],
         },
       ],
+      transaction,
     })
+
+    // Valider la transaction
+    await transaction.commit()
 
     ctx.status = 201
     ctx.body = completeQuote
   } catch (error) {
+    // Annuler la transaction en cas d'erreur
+    await transaction.rollback()
     console.error("Error creating quote:", error)
     throw error
   }
@@ -268,6 +299,9 @@ export const createQuote = async (ctx: Context) => {
  * Mettre à jour un devis
  */
 export const updateQuote = async (ctx: Context) => {
+  // Utiliser une transaction pour garantir l'atomicité des opérations
+  const transaction = await sequelize.transaction()
+
   try {
     const { id } = ctx.params
     const tenantId = ctx.state.user.tenantId
@@ -278,6 +312,7 @@ export const updateQuote = async (ctx: Context) => {
       validUntil,
       discountAmount,
       discountType,
+      taxRate,
       notes,
       terms,
       opportunityId,
@@ -298,89 +333,99 @@ export const updateQuote = async (ctx: Context) => {
           model: QuoteItem,
         },
       ],
+      transaction,
     })
 
     if (!quote) {
       throw new NotFoundError(`Quote with ID ${id} not found`)
     }
 
+    // Sauvegarder une version historique du devis avant modification
+    await QuoteHistory.create(
+      {
+        quoteId: quote.id,
+        version: quote.version || 1,
+        data: JSON.stringify(quote.toJSON()),
+      },
+      { transaction }
+    )
+
     // Mettre à jour les champs de base du devis
-    await quote.update({
-      title: title !== undefined ? title : quote.title,
-      description: description !== undefined ? description : quote.description,
-      status: status || quote.status,
-      validUntil: validUntil ? new Date(validUntil) : quote.validUntil,
-      discountAmount:
-        discountAmount !== undefined ? discountAmount : quote.discountAmount,
-      discountType: discountType || quote.discountType,
-      notes: notes !== undefined ? notes : quote.notes,
-      terms: terms !== undefined ? terms : quote.terms,
-      opportunityId: opportunityId !== undefined ? opportunityId : quote.opportunityId,
-      contactId: contactId !== undefined ? contactId : quote.contactId,
-      companyId: companyId !== undefined ? companyId : quote.companyId,
-      assignedToId: assignedToId !== undefined ? assignedToId : quote.assignedToId,
-    })
+    await quote.update(
+      {
+        title: title !== undefined ? title : quote.title,
+        description: description !== undefined ? description : quote.description,
+        status: status || quote.status,
+        validUntil: validUntil ? new Date(validUntil) : quote.validUntil,
+        discountAmount:
+          discountAmount !== undefined ? discountAmount : quote.discountAmount,
+        discountType: discountType || quote.discountType,
+        taxRate: taxRate !== undefined ? taxRate : quote.taxRate,
+        notes: notes !== undefined ? notes : quote.notes,
+        terms: terms !== undefined ? terms : quote.terms,
+        opportunityId: opportunityId !== undefined ? opportunityId : quote.opportunityId,
+        contactId: contactId !== undefined ? contactId : quote.contactId,
+        companyId: companyId !== undefined ? companyId : quote.companyId,
+        assignedToId: assignedToId !== undefined ? assignedToId : quote.assignedToId,
+        version: (quote.version || 1) + 1, // Incrémenter la version
+      },
+      { transaction }
+    )
 
     // Gérer les éléments du devis si fournis
+    const quoteItems = []
     if (items && items.length > 0) {
       // Supprimer les éléments existants
       await QuoteItem.destroy({
         where: {
           quoteId: id,
         },
+        transaction,
       })
 
       // Créer les nouveaux éléments
-      const quoteItems = await Promise.all(
-        items.map(async (item: any, index: number) => {
-          // Si un productId est fourni, récupérer les données du produit
-          if (item.productId) {
-            const product = await Product.findByPk(item.productId)
-            if (product) {
-              // Utiliser les données du produit si l'élément n'a pas ses propres valeurs
-              item.description = item.description || product.get("description")
-              item.unitPrice = item.unitPrice || product.get("unitPrice")
-              item.taxRate =
-                item.taxRate !== undefined ? item.taxRate : product.get("taxRate")
-            }
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        // Si un productId est fourni, récupérer les données du produit
+        if (item.productId) {
+          const product = await Product.findByPk(item.productId, { transaction })
+          if (product) {
+            // Utiliser les données du produit si l'élément n'a pas ses propres valeurs
+            item.description = item.description || product.get("description")
+            item.unitPrice = item.unitPrice || product.get("unitPrice")
+            item.taxRate =
+              item.taxRate !== undefined ? item.taxRate : product.get("taxRate")
           }
-
-          return QuoteItem.create({
-            ...item,
-            position: index,
-            quoteId: quote.id,
-          })
-        })
-      )
-
-      // Calculer le total du devis
-      const totalBeforeTax = quoteItems.reduce(
-        (sum, item) => sum + Number(item.totalPrice),
-        0
-      )
-      const totalTaxes = quoteItems.reduce(
-        (sum, item) =>
-          sum +
-          (Number(item.unitPrice) * Number(item.quantity) * Number(item.taxRate || 0)) /
-            100,
-        0
-      )
-
-      // Appliquer la remise globale si nécessaire
-      let finalTotal = totalBeforeTax
-      if (quote.discountAmount) {
-        if (quote.discountType === "PERCENTAGE") {
-          finalTotal = totalBeforeTax * (1 - Number(quote.discountAmount) / 100)
-        } else {
-          finalTotal = totalBeforeTax - Number(quote.discountAmount)
         }
+
+        const quoteItem = await QuoteItem.create(
+          {
+            ...item,
+            position: i,
+            quoteId: quote.id,
+          },
+          { transaction }
+        )
+
+        quoteItems.push(quoteItem)
       }
 
+      // Utiliser le service de calcul pour obtenir les totaux
+      const calculatedTotals = calculateQuoteTotals(
+        quoteItems,
+        quote.discountAmount,
+        quote.discountType,
+        quote.taxRate
+      )
+
       // Mettre à jour les totaux du devis
-      await quote.update({
-        totalAmount: finalTotal,
-        taxes: totalTaxes,
-      })
+      await quote.update(
+        {
+          totalAmount: calculatedTotals.totalAmount,
+          taxes: calculatedTotals.taxAmount,
+        },
+        { transaction }
+      )
     }
 
     // Récupérer le devis mis à jour
@@ -402,22 +447,24 @@ export const updateQuote = async (ctx: Context) => {
         },
         {
           model: Company,
-          attributes: ["id", "name"],
-        },
-        {
-          model: Opportunity,
-          attributes: ["id", "name"],
+          attributes: ["id", "name", "email"],
         },
         {
           model: User,
           as: "assignedTo",
-          attributes: ["id", "firstName", "lastName"],
+          attributes: ["id", "firstName", "lastName", "email"],
         },
       ],
+      transaction,
     })
+
+    // Valider la transaction
+    await transaction.commit()
 
     ctx.body = updatedQuote
   } catch (error) {
+    // Annuler la transaction en cas d'erreur
+    await transaction.rollback()
     console.error("Error updating quote:", error)
     throw error
   }

@@ -7,12 +7,14 @@ import {
   PurchaseOrder,
   PurchaseOrderItem,
   Quote,
-  QuoteItem,
+  sequelize,
   TermsAndConditions,
   User,
 } from "../models"
 import { PurchaseOrderStatus } from "../models/purchaseOrder"
 import { QuoteStatus } from "../models/quote"
+import { calculateQuoteTotals } from "../services/quoteCalculationService"
+import quoteConversionService from "../services/quoteConversionService"
 import { BadRequestError, NotFoundError } from "../utils/errors"
 import { buildPaginatedResponse, extractPaginationParams } from "../utils/pagination"
 
@@ -172,8 +174,12 @@ export const getPurchaseOrderById = async (ctx: Context) => {
  * Créer un nouveau bon de commande
  */
 export const createPurchaseOrder = async (ctx: Context) => {
+  // Utiliser une transaction pour garantir l'atomicité des opérations
+  const transaction = await sequelize.transaction()
+
   try {
     const tenantId = ctx.state.user.tenantId
+    const userId = ctx.state.user.id
     const {
       title,
       description,
@@ -181,6 +187,7 @@ export const createPurchaseOrder = async (ctx: Context) => {
       validUntil,
       discountAmount,
       discountType,
+      taxRate,
       notes,
       terms,
       quoteId,
@@ -202,82 +209,79 @@ export const createPurchaseOrder = async (ctx: Context) => {
     }
 
     // Créer le bon de commande de base
-    const purchaseOrder = await PurchaseOrder.create({
-      reference: generatePurchaseOrderReference(),
-      title,
-      description,
-      status: status || PurchaseOrderStatus.DRAFT,
-      validUntil: validUntil ? new Date(validUntil) : undefined,
-      discountAmount,
-      discountType,
-      notes,
-      terms,
-      quoteId,
-      contactId,
-      companyId,
-      assignedToId: assignedToId || ctx.state.user.id,
-      clientReference,
-      termsAndConditionsId,
-      tenantId,
-      totalAmount: 0, // Sera calculé après l'ajout des éléments
-      taxes: 0, // Sera calculé après l'ajout des éléments
-    })
+    const purchaseOrder = await PurchaseOrder.create(
+      {
+        reference: generatePurchaseOrderReference(),
+        title,
+        description,
+        status: status || PurchaseOrderStatus.DRAFT,
+        validUntil: validUntil ? new Date(validUntil) : undefined,
+        discountAmount,
+        discountType,
+        taxRate,
+        notes,
+        terms,
+        quoteId,
+        contactId,
+        companyId,
+        assignedToId: assignedToId || userId,
+        clientReference,
+        termsAndConditionsId,
+        tenantId,
+        totalAmount: 0, // Sera calculé après l'ajout des éléments
+        taxes: 0, // Sera calculé après l'ajout des éléments
+      },
+      { transaction }
+    )
 
     // Ajouter les éléments du bon de commande
+    const purchaseOrderItems = []
     if (items && items.length > 0) {
-      const purchaseOrderItems = await Promise.all(
-        items.map(async (item: any, index: number) => {
-          // Si un productId est fourni, récupérer les données du produit
-          if (item.productId) {
-            const product = await Product.findByPk(item.productId)
-            if (product) {
-              // Utiliser les données du produit si l'élément n'a pas ses propres valeurs
-              item.description = item.description || product.get("description")
-              item.unitPrice =
-                item.unitPrice !== undefined ? item.unitPrice : product.get("unitPrice")
-              item.taxRate =
-                item.taxRate !== undefined ? item.taxRate : product.get("taxRate")
-            }
+      for (let index = 0; index < items.length; index++) {
+        const item = items[index]
+        // Si un productId est fourni, récupérer les données du produit
+        if (item.productId) {
+          const product = await Product.findByPk(item.productId, { transaction })
+          if (product) {
+            // Utiliser les données du produit si l'élément n'a pas ses propres valeurs
+            item.description = item.description || product.get("description")
+            item.unitPrice =
+              item.unitPrice !== undefined ? item.unitPrice : product.get("unitPrice")
+            item.taxRate =
+              item.taxRate !== undefined ? item.taxRate : product.get("taxRate")
           }
+        }
 
-          return PurchaseOrderItem.create({
+        const poItem = await PurchaseOrderItem.create(
+          {
             ...item,
             quoteItemId: item.quoteItemId || null,
             position: index,
             purchaseOrderId: purchaseOrder.id,
             invoicedQuantity: 0, // Par défaut, aucune quantité n'est facturée
-          })
-        })
-      )
+          },
+          { transaction }
+        )
 
-      // Calculer le total du bon de commande
-      const totalBeforeTax = purchaseOrderItems.reduce(
-        (sum, item) => sum + Number(item.totalPrice),
-        0
-      )
-      const totalTaxes = purchaseOrderItems.reduce(
-        (sum, item) =>
-          sum +
-          (Number(item.unitPrice) * Number(item.quantity) * Number(item.taxRate || 0)) /
-            100,
-        0
-      )
-
-      // Appliquer la remise globale si nécessaire
-      let finalTotal = totalBeforeTax
-      if (discountAmount) {
-        if (discountType === "PERCENTAGE") {
-          finalTotal = totalBeforeTax * (1 - Number(discountAmount) / 100)
-        } else {
-          finalTotal = totalBeforeTax - Number(discountAmount)
-        }
+        purchaseOrderItems.push(poItem)
       }
 
+      // Utiliser le service de calcul pour obtenir les totaux
+      const calculatedTotals = calculateQuoteTotals(
+        purchaseOrderItems,
+        discountAmount,
+        discountType,
+        taxRate
+      )
+
       // Mettre à jour les totaux du bon de commande
-      await purchaseOrder.update({
-        totalAmount: finalTotal,
-        taxes: totalTaxes,
-      })
+      await purchaseOrder.update(
+        {
+          totalAmount: calculatedTotals.totalAmount,
+          taxes: calculatedTotals.taxAmount,
+        },
+        { transaction }
+      )
     }
 
     // Récupérer le bon de commande complet avec ses éléments
@@ -294,11 +298,17 @@ export const createPurchaseOrder = async (ctx: Context) => {
           ],
         },
       ],
+      transaction,
     })
+
+    // Valider la transaction
+    await transaction.commit()
 
     ctx.status = 201
     ctx.body = completePurchaseOrder
   } catch (error) {
+    // Annuler la transaction en cas d'erreur
+    await transaction.rollback()
     console.error("Error creating purchase order:", error)
     throw error
   }
@@ -308,95 +318,21 @@ export const createPurchaseOrder = async (ctx: Context) => {
  * Convertir un devis en bon de commande
  */
 export const convertQuoteToPurchaseOrder = async (ctx: Context) => {
+  // Utiliser une transaction pour garantir l'atomicité des opérations
+  const transaction = await sequelize.transaction()
+
   try {
     const { quoteId } = ctx.params
     const tenantId = ctx.state.user.tenantId
+    const userId = ctx.state.user.id
 
-    // Récupérer le devis à convertir avec ses éléments
-    const quote = await Quote.findOne({
-      where: {
-        id: quoteId,
-        tenantId,
-      },
-      include: [
-        {
-          model: QuoteItem,
-          include: [
-            {
-              model: Product,
-            },
-          ],
-        },
-      ],
-    })
-
-    if (!quote) {
-      throw new NotFoundError(`Quote with ID ${quoteId} not found`)
-    }
-
-    // Vérifier que le devis n'a pas déjà été converti
-    if (quote.convertedToId) {
-      throw new BadRequestError(
-        `Quote with ID ${quoteId} has already been converted to ${quote.convertedToType}`
-      )
-    }
-
-    // Vérifier que le devis est dans un état qui permet la conversion
-    if (quote.status !== QuoteStatus.ACCEPTED) {
-      throw new BadRequestError(
-        `Quote with ID ${quoteId} cannot be converted because its status is ${quote.status}`
-      )
-    }
-
-    // Créer un nouveau bon de commande à partir du devis
-    const purchaseOrder = await PurchaseOrder.create({
-      reference: generatePurchaseOrderReference(),
-      title: `Bon de commande - ${quote.title}`,
-      description: quote.description,
-      status: PurchaseOrderStatus.DRAFT,
-      validUntil: quote.validUntil,
-      discountAmount: quote.discountAmount,
-      discountType: quote.discountType,
-      notes: quote.notes,
-      terms: quote.terms,
-      quoteId: quote.id,
-      companyId: quote.companyId,
-      contactId: quote.contactId,
-      assignedToId: quote.assignedToId,
-      termsAndConditionsId: quote.termsAndConditionsId,
-      tenantId: quote.tenantId,
-      totalAmount: quote.totalAmount,
-      taxes: quote.taxes,
-    })
-
-    // Créer les éléments du bon de commande à partir des éléments du devis
-    if (quote.QuoteItems && quote.QuoteItems.length > 0) {
-      await Promise.all(
-        quote.QuoteItems.map(async (item: any, index: number) => {
-          return PurchaseOrderItem.create({
-            purchaseOrderId: purchaseOrder.id,
-            quoteItemId: item.id,
-            productId: item.productId,
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            discount: item.discount,
-            discountType: item.discountType,
-            taxRate: item.taxRate,
-            totalPrice: item.totalPrice,
-            position: index,
-            invoicedQuantity: 0, // Aucune quantité facturée au départ
-          })
-        })
-      )
-    }
-
-    // Mettre à jour le devis pour marquer qu'il a été converti
-    await quote.update({
-      status: QuoteStatus.CONVERTED,
-      convertedToId: purchaseOrder.id,
-      convertedToType: "PURCHASE_ORDER",
-    })
+    // Utiliser notre service de conversion
+    const purchaseOrder = await quoteConversionService.convertQuoteToPurchaseOrder(
+      quoteId,
+      userId,
+      tenantId,
+      transaction
+    )
 
     // Récupérer le bon de commande complet avec ses éléments
     const completePurchaseOrder = await PurchaseOrder.findByPk(purchaseOrder.id, {
@@ -412,11 +348,17 @@ export const convertQuoteToPurchaseOrder = async (ctx: Context) => {
           ],
         },
       ],
+      transaction,
     })
+
+    // Valider la transaction
+    await transaction.commit()
 
     ctx.status = 201
     ctx.body = completePurchaseOrder
   } catch (error) {
+    // Annuler la transaction en cas d'erreur
+    await transaction.rollback()
     console.error("Error converting quote to purchase order:", error)
     throw error
   }
@@ -426,6 +368,9 @@ export const convertQuoteToPurchaseOrder = async (ctx: Context) => {
  * Mettre à jour un bon de commande
  */
 export const updatePurchaseOrder = async (ctx: Context) => {
+  // Utiliser une transaction pour garantir l'atomicité des opérations
+  const transaction = await sequelize.transaction()
+
   try {
     const { id } = ctx.params
     const tenantId = ctx.state.user.tenantId
@@ -436,6 +381,7 @@ export const updatePurchaseOrder = async (ctx: Context) => {
       validUntil,
       discountAmount,
       discountType,
+      taxRate,
       notes,
       terms,
       contactId,
@@ -457,6 +403,7 @@ export const updatePurchaseOrder = async (ctx: Context) => {
           model: PurchaseOrderItem,
         },
       ],
+      transaction,
     })
 
     if (!purchaseOrder) {
@@ -464,90 +411,88 @@ export const updatePurchaseOrder = async (ctx: Context) => {
     }
 
     // Mettre à jour les champs de base du bon de commande
-    await purchaseOrder.update({
-      title: title !== undefined ? title : purchaseOrder.title,
-      description: description !== undefined ? description : purchaseOrder.description,
-      status: status || purchaseOrder.status,
-      validUntil: validUntil ? new Date(validUntil) : purchaseOrder.validUntil,
-      discountAmount:
-        discountAmount !== undefined ? discountAmount : purchaseOrder.discountAmount,
-      discountType: discountType || purchaseOrder.discountType,
-      notes: notes !== undefined ? notes : purchaseOrder.notes,
-      terms: terms !== undefined ? terms : purchaseOrder.terms,
-      contactId: contactId !== undefined ? contactId : purchaseOrder.contactId,
-      companyId: companyId !== undefined ? companyId : purchaseOrder.companyId,
-      assignedToId:
-        assignedToId !== undefined ? assignedToId : purchaseOrder.assignedToId,
-      clientReference:
-        clientReference !== undefined ? clientReference : purchaseOrder.clientReference,
-      termsAndConditionsId:
-        termsAndConditionsId !== undefined
-          ? termsAndConditionsId
-          : purchaseOrder.termsAndConditionsId,
-    })
+    await purchaseOrder.update(
+      {
+        title: title !== undefined ? title : purchaseOrder.title,
+        description: description !== undefined ? description : purchaseOrder.description,
+        status: status || purchaseOrder.status,
+        validUntil: validUntil ? new Date(validUntil) : purchaseOrder.validUntil,
+        discountAmount:
+          discountAmount !== undefined ? discountAmount : purchaseOrder.discountAmount,
+        discountType: discountType || purchaseOrder.discountType,
+        taxRate: taxRate !== undefined ? taxRate : purchaseOrder.taxRate,
+        notes: notes !== undefined ? notes : purchaseOrder.notes,
+        terms: terms !== undefined ? terms : purchaseOrder.terms,
+        contactId: contactId !== undefined ? contactId : purchaseOrder.contactId,
+        companyId: companyId !== undefined ? companyId : purchaseOrder.companyId,
+        assignedToId:
+          assignedToId !== undefined ? assignedToId : purchaseOrder.assignedToId,
+        clientReference:
+          clientReference !== undefined ? clientReference : purchaseOrder.clientReference,
+        termsAndConditionsId:
+          termsAndConditionsId !== undefined
+            ? termsAndConditionsId
+            : purchaseOrder.termsAndConditionsId,
+      },
+      { transaction }
+    )
 
     // Gérer les éléments du bon de commande si fournis
+    const purchaseOrderItems = []
     if (items && items.length > 0) {
       // Supprimer les éléments existants
       await PurchaseOrderItem.destroy({
         where: {
           purchaseOrderId: id,
         },
+        transaction,
       })
 
       // Créer les nouveaux éléments
-      const purchaseOrderItems = await Promise.all(
-        items.map(async (item: any, index: number) => {
-          // Si un productId est fourni, récupérer les données du produit
-          if (item.productId) {
-            const product = await Product.findByPk(item.productId)
-            if (product) {
-              // Utiliser les données du produit si l'élément n'a pas ses propres valeurs
-              item.description = item.description || product.get("description")
-              item.unitPrice =
-                item.unitPrice !== undefined ? item.unitPrice : product.get("unitPrice")
-              item.taxRate =
-                item.taxRate !== undefined ? item.taxRate : product.get("taxRate")
-            }
+      for (let index = 0; index < items.length; index++) {
+        const item = items[index]
+        // Si un productId est fourni, récupérer les données du produit
+        if (item.productId) {
+          const product = await Product.findByPk(item.productId, { transaction })
+          if (product) {
+            // Utiliser les données du produit si l'élément n'a pas ses propres valeurs
+            item.description = item.description || product.get("description")
+            item.unitPrice =
+              item.unitPrice !== undefined ? item.unitPrice : product.get("unitPrice")
+            item.taxRate =
+              item.taxRate !== undefined ? item.taxRate : product.get("taxRate")
           }
+        }
 
-          return PurchaseOrderItem.create({
+        const poItem = await PurchaseOrderItem.create(
+          {
             ...item,
             position: index,
             purchaseOrderId: purchaseOrder.id,
             invoicedQuantity: item.invoicedQuantity || 0,
-          })
-        })
-      )
+          },
+          { transaction }
+        )
 
-      // Calculer le total du bon de commande
-      const totalBeforeTax = purchaseOrderItems.reduce(
-        (sum, item) => sum + Number(item.totalPrice),
-        0
-      )
-      const totalTaxes = purchaseOrderItems.reduce(
-        (sum, item) =>
-          sum +
-          (Number(item.unitPrice) * Number(item.quantity) * Number(item.taxRate || 0)) /
-            100,
-        0
-      )
-
-      // Appliquer la remise globale si nécessaire
-      let finalTotal = totalBeforeTax
-      if (purchaseOrder.discountAmount) {
-        if (purchaseOrder.discountType === "PERCENTAGE") {
-          finalTotal = totalBeforeTax * (1 - Number(purchaseOrder.discountAmount) / 100)
-        } else {
-          finalTotal = totalBeforeTax - Number(purchaseOrder.discountAmount)
-        }
+        purchaseOrderItems.push(poItem)
       }
 
+      // Utiliser le service de calcul pour obtenir les totaux
+      const calculatedTotals = calculateQuoteTotals(
+        purchaseOrderItems,
+        purchaseOrder.discountAmount,
+        purchaseOrder.discountType,
+        purchaseOrder.taxRate
+      )
+
       // Mettre à jour les totaux du bon de commande
-      await purchaseOrder.update({
-        totalAmount: finalTotal,
-        taxes: totalTaxes,
-      })
+      await purchaseOrder.update(
+        {
+          totalAmount: calculatedTotals.totalAmount,
+          taxes: calculatedTotals.taxAmount,
+        },
+        { transaction }
+      )
     }
 
     // Récupérer le bon de commande mis à jour
@@ -581,10 +526,16 @@ export const updatePurchaseOrder = async (ctx: Context) => {
           attributes: ["id", "firstName", "lastName"],
         },
       ],
+      transaction,
     })
+
+    // Valider la transaction
+    await transaction.commit()
 
     ctx.body = updatedPurchaseOrder
   } catch (error) {
+    // Annuler la transaction en cas d'erreur
+    await transaction.rollback()
     console.error("Error updating purchase order:", error)
     throw error
   }
