@@ -10,7 +10,11 @@ import NoteModel, { Note } from "./note"
 import NotificationModel, { Notification } from "./notification"
 import NotificationTemplateModel, { NotificationTemplate } from "./notificationTemplate"
 import OpportunityModel, { Opportunity } from "./opportunity"
+import ProductModel, { Product } from "./product"
+import PurchaseOrderModel, { PurchaseOrder } from "./purchaseOrder"
+import PurchaseOrderItemModel, { PurchaseOrderItem } from "./purchaseOrderItem"
 import QuoteModel, { Quote } from "./quote"
+import QuoteHistoryModel, { QuoteHistory } from "./quoteHistory"
 import QuoteItemModel, { QuoteItem } from "./quoteItem"
 import ReminderModel, { Reminder } from "./reminder"
 import RoleModel, { Role } from "./role"
@@ -18,6 +22,7 @@ import SegmentModel, { Segment } from "./segment"
 import SpecialityModel, { Speciality } from "./speciality"
 import StatusModel, { Status } from "./status"
 import TenantModel, { Tenant } from "./tenant"
+import TermsAndConditionsModel, { TermsAndConditions } from "./termsAndConditions"
 import UserModel, { User } from "./user"
 import UserIntegrationModel, { UserIntegration } from "./userIntegration"
 import WebhookModel, { Webhook } from "./webhook"
@@ -43,6 +48,9 @@ TenantModel.hasMany(NotificationTemplateModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(WebhookModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(OpportunityModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(QuoteModel, { foreignKey: "tenantId" })
+TenantModel.hasMany(TermsAndConditionsModel, { foreignKey: "tenantId" })
+TenantModel.hasMany(ProductModel, { foreignKey: "tenantId" })
+TenantModel.hasMany(PurchaseOrderModel, { foreignKey: "tenantId" })
 
 // Relations User
 UserModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
@@ -188,6 +196,49 @@ QuoteModel.hasMany(QuoteItemModel, { foreignKey: "quoteId", onDelete: "CASCADE" 
 
 // Relations pour les éléments de devis
 QuoteItemModel.belongsTo(QuoteModel, { foreignKey: "quoteId", onDelete: "CASCADE" })
+QuoteItemModel.belongsTo(ProductModel, { foreignKey: "productId" })
+
+// Relations pour les produits/services
+ProductModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
+ProductModel.belongsTo(UserModel, { as: "createdBy", foreignKey: "createdById" })
+ProductModel.hasMany(QuoteItemModel, { foreignKey: "productId" })
+ProductModel.hasMany(PurchaseOrderItemModel, { foreignKey: "productId" })
+
+// Relations pour l'historique des devis
+QuoteHistoryModel.belongsTo(QuoteModel, { foreignKey: "quoteId" })
+QuoteHistoryModel.belongsTo(UserModel, { foreignKey: "userId" })
+
+// Relations pour les conditions générales de vente
+TermsAndConditionsModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
+TermsAndConditionsModel.hasMany(QuoteModel, { foreignKey: "termsAndConditionsId" })
+TermsAndConditionsModel.hasMany(PurchaseOrderModel, {
+  foreignKey: "termsAndConditionsId",
+})
+
+// Relations pour les bons de commande
+PurchaseOrderModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
+PurchaseOrderModel.belongsTo(QuoteModel, { foreignKey: "quoteId" })
+PurchaseOrderModel.belongsTo(CompanyModel, { foreignKey: "companyId" })
+PurchaseOrderModel.belongsTo(ContactModel, { foreignKey: "contactId" })
+PurchaseOrderModel.belongsTo(UserModel, { as: "assignedTo", foreignKey: "assignedToId" })
+PurchaseOrderModel.belongsTo(TermsAndConditionsModel, {
+  foreignKey: "termsAndConditionsId",
+})
+PurchaseOrderModel.hasMany(PurchaseOrderItemModel, {
+  foreignKey: "purchaseOrderId",
+  onDelete: "CASCADE",
+})
+
+// Relations pour les éléments de bons de commande
+PurchaseOrderItemModel.belongsTo(PurchaseOrderModel, {
+  foreignKey: "purchaseOrderId",
+  onDelete: "CASCADE",
+})
+PurchaseOrderItemModel.belongsTo(QuoteItemModel, { foreignKey: "quoteItemId" })
+PurchaseOrderItemModel.belongsTo(ProductModel, { foreignKey: "productId" })
+
+// Relations pour les devis
+QuoteModel.hasMany(PurchaseOrderModel, { foreignKey: "quoteId" })
 
 // Export des modèles
 export {
@@ -201,7 +252,11 @@ export {
   Notification,
   NotificationTemplate,
   Opportunity,
+  Product,
+  PurchaseOrder,
+  PurchaseOrderItem,
   Quote,
+  QuoteHistory,
   QuoteItem,
   Reminder,
   Role,
@@ -210,6 +265,7 @@ export {
   Speciality,
   Status,
   Tenant,
+  TermsAndConditions,
   User,
   UserIntegration,
   Webhook,

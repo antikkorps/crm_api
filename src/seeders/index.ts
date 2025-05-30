@@ -3,6 +3,7 @@ import { seedActivities } from "./activitySeeder"
 import { seedCompaniesAndContacts } from "./companyContactSeeder"
 import { seedNotes } from "./noteSeeder"
 import { seedOpportunities } from "./opportunitySeeder"
+import { seedProducts } from "./productSeeder"
 import { seedQuotes } from "./quoteSeeder"
 import { seedRoles } from "./roleSeeder"
 import { seedSpecialities } from "./specialitySeeder"
@@ -85,6 +86,10 @@ export const seedDatabase = async () => {
     // Créer des opportunités
     await seedOpportunities(tenantId)
     console.log("Completed seeding opportunities")
+
+    // Créer des produits
+    await seedProducts(tenantId)
+    console.log("Completed seeding products")
 
     // Créer des devis
     await seedQuotes(tenantId)

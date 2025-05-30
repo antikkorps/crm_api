@@ -1,6 +1,6 @@
 import { Context } from "koa"
 import { Op } from "sequelize"
-import { Company, Contact, Opportunity, Quote, QuoteItem, User } from "../models"
+import { Company, Contact, Opportunity, Product, Quote, QuoteItem, User } from "../models"
 import { QuoteStatus } from "../models/quote"
 import { BadRequestError, NotFoundError } from "../utils/errors"
 import { buildPaginatedResponse, extractPaginationParams } from "../utils/pagination"
@@ -94,6 +94,12 @@ export const getQuoteById = async (ctx: Context) => {
         {
           model: QuoteItem,
           order: [["position", "ASC"]],
+          include: [
+            {
+              model: Product,
+              attributes: ["id", "name", "code", "category", "unitPrice", "taxRate"],
+            },
+          ],
         },
         {
           model: Contact,
@@ -145,7 +151,7 @@ export const createQuote = async (ctx: Context) => {
       description,
       status,
       validUntil,
-      discountValue,
+      discountAmount,
       discountType,
       notes,
       terms,
@@ -167,7 +173,7 @@ export const createQuote = async (ctx: Context) => {
       description,
       status: status || QuoteStatus.DRAFT,
       validUntil: validUntil ? new Date(validUntil) : undefined,
-      discountValue,
+      discountAmount,
       discountType,
       notes,
       terms,
@@ -184,6 +190,18 @@ export const createQuote = async (ctx: Context) => {
     if (items && items.length > 0) {
       const quoteItems = await Promise.all(
         items.map(async (item: any, index: number) => {
+          // Si un productId est fourni, récupérer les données du produit
+          if (item.productId) {
+            const product = await Product.findByPk(item.productId)
+            if (product) {
+              // Utiliser les données du produit si l'élément n'a pas ses propres valeurs
+              item.description = item.description || product.get("description")
+              item.unitPrice = item.unitPrice || product.get("unitPrice")
+              item.taxRate =
+                item.taxRate !== undefined ? item.taxRate : product.get("taxRate")
+            }
+          }
+
           return QuoteItem.create({
             ...item,
             position: index,
@@ -193,7 +211,10 @@ export const createQuote = async (ctx: Context) => {
       )
 
       // Calculer le total du devis
-      const totalBeforeTax = quoteItems.reduce((sum, item) => sum + Number(item.total), 0)
+      const totalBeforeTax = quoteItems.reduce(
+        (sum, item) => sum + Number(item.totalPrice),
+        0
+      )
       const totalTaxes = quoteItems.reduce(
         (sum, item) =>
           sum +
@@ -204,11 +225,11 @@ export const createQuote = async (ctx: Context) => {
 
       // Appliquer la remise globale si nécessaire
       let finalTotal = totalBeforeTax
-      if (discountValue) {
-        if (discountType === "percentage") {
-          finalTotal = totalBeforeTax * (1 - Number(discountValue) / 100)
+      if (discountAmount) {
+        if (discountType === "PERCENTAGE") {
+          finalTotal = totalBeforeTax * (1 - Number(discountAmount) / 100)
         } else {
-          finalTotal = totalBeforeTax - Number(discountValue)
+          finalTotal = totalBeforeTax - Number(discountAmount)
         }
       }
 
@@ -225,6 +246,12 @@ export const createQuote = async (ctx: Context) => {
         {
           model: QuoteItem,
           order: [["position", "ASC"]],
+          include: [
+            {
+              model: Product,
+              attributes: ["id", "name", "code", "category", "unitPrice", "taxRate"],
+            },
+          ],
         },
       ],
     })
@@ -249,7 +276,7 @@ export const updateQuote = async (ctx: Context) => {
       description,
       status,
       validUntil,
-      discountValue,
+      discountAmount,
       discountType,
       notes,
       terms,
@@ -283,7 +310,8 @@ export const updateQuote = async (ctx: Context) => {
       description: description !== undefined ? description : quote.description,
       status: status || quote.status,
       validUntil: validUntil ? new Date(validUntil) : quote.validUntil,
-      discountValue: discountValue !== undefined ? discountValue : quote.discountValue,
+      discountAmount:
+        discountAmount !== undefined ? discountAmount : quote.discountAmount,
       discountType: discountType || quote.discountType,
       notes: notes !== undefined ? notes : quote.notes,
       terms: terms !== undefined ? terms : quote.terms,
@@ -305,6 +333,18 @@ export const updateQuote = async (ctx: Context) => {
       // Créer les nouveaux éléments
       const quoteItems = await Promise.all(
         items.map(async (item: any, index: number) => {
+          // Si un productId est fourni, récupérer les données du produit
+          if (item.productId) {
+            const product = await Product.findByPk(item.productId)
+            if (product) {
+              // Utiliser les données du produit si l'élément n'a pas ses propres valeurs
+              item.description = item.description || product.get("description")
+              item.unitPrice = item.unitPrice || product.get("unitPrice")
+              item.taxRate =
+                item.taxRate !== undefined ? item.taxRate : product.get("taxRate")
+            }
+          }
+
           return QuoteItem.create({
             ...item,
             position: index,
@@ -314,7 +354,10 @@ export const updateQuote = async (ctx: Context) => {
       )
 
       // Calculer le total du devis
-      const totalBeforeTax = quoteItems.reduce((sum, item) => sum + Number(item.total), 0)
+      const totalBeforeTax = quoteItems.reduce(
+        (sum, item) => sum + Number(item.totalPrice),
+        0
+      )
       const totalTaxes = quoteItems.reduce(
         (sum, item) =>
           sum +
@@ -325,11 +368,11 @@ export const updateQuote = async (ctx: Context) => {
 
       // Appliquer la remise globale si nécessaire
       let finalTotal = totalBeforeTax
-      if (quote.discountValue) {
-        if (quote.discountType === "percentage") {
-          finalTotal = totalBeforeTax * (1 - Number(quote.discountValue) / 100)
+      if (quote.discountAmount) {
+        if (quote.discountType === "PERCENTAGE") {
+          finalTotal = totalBeforeTax * (1 - Number(quote.discountAmount) / 100)
         } else {
-          finalTotal = totalBeforeTax - Number(quote.discountValue)
+          finalTotal = totalBeforeTax - Number(quote.discountAmount)
         }
       }
 
@@ -346,6 +389,12 @@ export const updateQuote = async (ctx: Context) => {
         {
           model: QuoteItem,
           order: [["position", "ASC"]],
+          include: [
+            {
+              model: Product,
+              attributes: ["id", "name", "code", "category", "unitPrice", "taxRate"],
+            },
+          ],
         },
         {
           model: Contact,
@@ -500,6 +549,12 @@ export const duplicateQuote = async (ctx: Context) => {
         {
           model: QuoteItem,
           order: [["position", "ASC"]],
+          include: [
+            {
+              model: Product,
+              attributes: ["id", "name", "code", "category", "unitPrice", "taxRate"],
+            },
+          ],
         },
       ],
     })

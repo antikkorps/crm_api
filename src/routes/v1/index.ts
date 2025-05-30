@@ -6,6 +6,9 @@ import contactRoutes from "../contactRoutes"
 import integrationsRoutes from "../integrationsRoutes"
 import noteRoutes from "../noteRoutes"
 import notificationRoutes from "../notificationRoutes"
+import productRoutes from "../productRoutes"
+import purchaseOrderRoutes from "../purchaseOrderRoutes"
+import quoteItemRoutes from "../quoteItemRoutes"
 import quoteRoutes from "../quoteRoutes"
 import reminderRoutes from "../reminderRoutes"
 import roleRoutes from "../roleRoutes"
@@ -74,6 +77,9 @@ configureV1Routes(integrationsRoutes)
 configureV1Routes(notificationRoutes)
 configureV1Routes(webhookRoutes)
 configureV1Routes(quoteRoutes)
+configureV1Routes(quoteItemRoutes)
+configureV1Routes(purchaseOrderRoutes)
 configureV1Routes(specialityRoutes)
+configureV1Routes(productRoutes)
 
 export default v1Router

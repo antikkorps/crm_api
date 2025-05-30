@@ -1,18 +1,54 @@
-import { DataTypes } from "sequelize"
+import { CreateOptions, DataTypes, Model, UpdateOptions } from "sequelize"
 import { v4 as uuidv4 } from "uuid"
 import { sequelize } from "../config/database"
+import { QuoteHistory } from "./quoteHistory"
 
-// États possibles d'un devis
+// Enum pour les statuts de devis
 export enum QuoteStatus {
   DRAFT = "DRAFT",
   SENT = "SENT",
   ACCEPTED = "ACCEPTED",
   REJECTED = "REJECTED",
-  EXPIRED = "EXPIRED",
+  CONVERTED = "CONVERTED",
+  CANCELLED = "CANCELLED",
 }
 
-// Types de remises
-export type DiscountType = "percentage" | "fixed"
+export interface QuoteInstance extends Model {
+  id: string
+  reference: string
+  title: string
+  description?: string
+  status: "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "CONVERTED" | "CANCELLED"
+  companyId: string
+  contactId?: string
+  validUntil?: Date
+  totalAmount: number
+  discountAmount?: number
+  discountType?: "PERCENTAGE" | "FIXED"
+  taxRate?: number
+  notes?: string
+  terms?: string
+  termsAndConditionsId?: string
+  assignedToId?: string
+  version: number
+  tenantId: string
+  createdAt: Date
+  updatedAt: Date
+  convertedToId?: string
+  convertedToType?: "PURCHASE_ORDER" | "INVOICE"
+  opportunityId?: string
+  taxes?: number
+  QuoteItems?: any[]
+  toJSON(): any
+}
+
+interface CustomOptions {
+  userId?: string
+  _previousData?: any
+}
+
+type CustomCreateOptions = CreateOptions<any> & CustomOptions
+type CustomUpdateOptions = UpdateOptions<any> & CustomOptions
 
 export const Quote = sequelize.define(
   "Quote",
@@ -25,72 +61,35 @@ export const Quote = sequelize.define(
     reference: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
-      defaultValue: () => {
-        const currentDate = new Date()
-        const year = currentDate.getFullYear().toString().slice(-2)
-        const month = String(currentDate.getMonth() + 1).padStart(2, "0")
-        const uniqueId = Math.floor(1000 + Math.random() * 9000)
-        return `Q${year}${month}-${uniqueId}`
-      },
+      comment: "Référence unique du devis (générée automatiquement)",
     },
     title: {
       type: DataTypes.STRING,
       allowNull: false,
+      comment: "Titre du devis",
     },
     description: {
       type: DataTypes.TEXT,
       allowNull: true,
+      comment: "Description détaillée du devis",
     },
     status: {
-      type: DataTypes.ENUM(...Object.values(QuoteStatus)),
-      defaultValue: QuoteStatus.DRAFT,
-      allowNull: false,
-    },
-    validUntil: {
-      type: DataTypes.DATE,
-      allowNull: true,
-    },
-    totalAmount: {
-      type: DataTypes.DECIMAL(10, 2),
-      allowNull: false,
-      defaultValue: 0,
-    },
-    taxes: {
-      type: DataTypes.DECIMAL(10, 2),
-      allowNull: false,
-      defaultValue: 0,
-    },
-    discountValue: {
-      type: DataTypes.DECIMAL(10, 2),
-      allowNull: true,
-      comment: "Valeur de la remise (pourcentage ou montant fixe)",
-    },
-    discountType: {
       type: DataTypes.STRING,
-      allowNull: true,
+      allowNull: false,
+      defaultValue: "DRAFT",
+      comment: "Statut actuel du devis",
       validate: {
-        isIn: [["percentage", "fixed"]],
+        isIn: [["DRAFT", "SENT", "ACCEPTED", "REJECTED", "CONVERTED", "CANCELLED"]],
       },
-      comment: "Type de remise (pourcentage ou montant fixe)",
     },
-    notes: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-      comment: "Notes internes sur le devis",
-    },
-    terms: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-      comment: "Conditions générales et termes du devis",
-    },
-    opportunityId: {
+    companyId: {
       type: DataTypes.UUID,
-      allowNull: true,
+      allowNull: false,
       references: {
-        model: "opportunities",
+        model: "companies",
         key: "id",
       },
+      comment: "Entreprise cliente concernée par le devis",
     },
     contactId: {
       type: DataTypes.UUID,
@@ -99,14 +98,56 @@ export const Quote = sequelize.define(
         model: "contacts",
         key: "id",
       },
+      comment: "Contact principal pour ce devis",
     },
-    companyId: {
+    validUntil: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Date de validité du devis",
+    },
+    totalAmount: {
+      type: DataTypes.DECIMAL(15, 2),
+      allowNull: false,
+      defaultValue: 0,
+      comment: "Montant total du devis",
+    },
+    discountAmount: {
+      type: DataTypes.DECIMAL(15, 2),
+      allowNull: true,
+      comment: "Montant ou pourcentage de remise",
+    },
+    discountType: {
+      type: DataTypes.STRING, // Utiliser STRING au lieu de ENUM
+      allowNull: true,
+      comment: "Type de remise (pourcentage ou montant fixe)",
+      validate: {
+        isIn: [["PERCENTAGE", "FIXED"]],
+      },
+    },
+    taxRate: {
+      type: DataTypes.DECIMAL(5, 2),
+      allowNull: true,
+      defaultValue: 20.0,
+      comment: "Taux de TVA applicable",
+    },
+    notes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: "Notes ou commentaires sur le devis",
+    },
+    terms: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: "Conditions générales spécifiques à ce devis",
+    },
+    termsAndConditionsId: {
       type: DataTypes.UUID,
       allowNull: true,
       references: {
-        model: "companies",
+        model: "terms_and_conditions",
         key: "id",
       },
+      comment: "Conditions générales de vente associées",
     },
     assignedToId: {
       type: DataTypes.UUID,
@@ -115,6 +156,13 @@ export const Quote = sequelize.define(
         model: "users",
         key: "id",
       },
+      comment: "Utilisateur responsable du devis",
+    },
+    version: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 1,
+      comment: "Version actuelle du devis",
     },
     tenantId: {
       type: DataTypes.UUID,
@@ -123,31 +171,115 @@ export const Quote = sequelize.define(
         model: "tenants",
         key: "id",
       },
+      comment: "Tenant auquel appartient ce devis",
     },
-    createdAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
+    convertedToId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      comment: "ID de l'entité vers laquelle ce devis a été converti",
     },
-    updatedAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
+    convertedToType: {
+      type: DataTypes.STRING, // Utiliser STRING au lieu de ENUM
+      allowNull: true,
+      comment: "Type d'entité vers lequel ce devis a été converti",
+      validate: {
+        isIn: [["PURCHASE_ORDER", "INVOICE"]],
+      },
+    },
+    opportunityId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: "opportunities",
+        key: "id",
+      },
+      comment: "Opportunité associée à ce devis",
+    },
+    taxes: {
+      type: DataTypes.DECIMAL(15, 2),
+      allowNull: true,
+      defaultValue: 0,
+      comment: "Montant total des taxes",
     },
   },
   {
     tableName: "quotes",
     hooks: {
-      beforeCreate: async (quote: any) => {
-        // Si pas de référence fournie, en générer une automatiquement
-        if (!quote.reference) {
-          const currentDate = new Date()
-          const year = currentDate.getFullYear().toString().slice(-2)
-          const month = String(currentDate.getMonth() + 1).padStart(2, "0")
-          const uniqueId = Math.floor(1000 + Math.random() * 9000)
-          quote.reference = `Q${year}${month}-${uniqueId}`
+      // Hook pour enregistrer l'historique lors de la création
+      afterCreate: async (quote: any, options: any) => {
+        try {
+          // Récupérer userId à partir des options personnalisées
+          const userId = (options as CustomCreateOptions).userId || null
+
+          await QuoteHistory.create({
+            quoteId: quote.id,
+            userId: userId,
+            version: 1,
+            changeType: "CREATED",
+            previousData: null,
+            newData: quote.toJSON(),
+            changedFields: Object.keys(quote.toJSON()).filter(
+              (key) => !["id", "createdAt", "updatedAt"].includes(key)
+            ),
+          })
+        } catch (error) {
+          console.error("Error creating quote history:", error)
+        }
+      },
+
+      // Hook pour enregistrer l'historique lors de la mise à jour
+      beforeUpdate: async (quote: any, options: any) => {
+        try {
+          const typedOptions = options as CustomUpdateOptions
+
+          // Stocker l'état précédent pour l'historique
+          const previousData = await Quote.findByPk(quote.id)
+          if (previousData) {
+            typedOptions._previousData = previousData.toJSON()
+          }
+        } catch (error) {
+          console.error("Error in beforeUpdate hook:", error)
+        }
+      },
+
+      afterUpdate: async (quote: any, options: any) => {
+        try {
+          const typedOptions = options as CustomUpdateOptions
+          const userId = typedOptions.userId || null
+          const previousData = typedOptions._previousData
+
+          if (!previousData) return
+
+          const newData = quote.toJSON()
+          const changedFields = Object.keys(newData).filter(
+            (key) =>
+              !["updatedAt"].includes(key) &&
+              JSON.stringify(previousData[key]) !== JSON.stringify(newData[key])
+          )
+
+          if (changedFields.length === 0) return
+
+          const changeType = changedFields.includes("status")
+            ? "STATUS_CHANGED"
+            : changedFields.includes("convertedToId")
+            ? "CONVERTED"
+            : "UPDATED"
+
+          await QuoteHistory.create({
+            quoteId: quote.id,
+            userId: userId,
+            version: newData.version,
+            changeType,
+            previousData,
+            newData,
+            changedFields,
+          })
+        } catch (error) {
+          console.error("Error creating quote update history:", error)
         }
       },
     },
   }
-)
+) as unknown as typeof Model & { new (): QuoteInstance }
 
 export default Quote
