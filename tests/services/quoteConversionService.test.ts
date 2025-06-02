@@ -1,3 +1,21 @@
+// Déclaration des mocks
+const mockQuoteFindOne: jest.Mock = jest.fn()
+const mockPurchaseOrderCreate: jest.Mock = jest.fn()
+const mockPurchaseOrderItemCreate: jest.Mock = jest.fn()
+
+// Mock des modèles Sequelize
+jest.mock("../../src/models", () => ({
+  Quote: {
+    findOne: mockQuoteFindOne,
+  },
+  PurchaseOrder: {
+    create: mockPurchaseOrderCreate,
+  },
+  PurchaseOrderItem: {
+    create: mockPurchaseOrderItemCreate,
+  },
+}))
+
 import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals"
 import { Transaction } from "sequelize"
 import { convertQuoteToPurchaseOrder } from "../../src/services/quoteConversionService"
@@ -20,26 +38,7 @@ interface MockPurchaseOrder {
   get: jest.Mock
 }
 
-// Déclaration des mocks
-const mockQuoteFindOne = jest.fn()
-const mockPurchaseOrderCreate = jest.fn()
-const mockPurchaseOrderItemCreate = jest.fn()
-
-// Mock des modèles Sequelize
-jest.mock("../../src/models", () => ({
-  Quote: {
-    findOne: mockQuoteFindOne,
-  },
-  PurchaseOrder: {
-    create: mockPurchaseOrderCreate,
-  },
-  PurchaseOrderItem: {
-    create: mockPurchaseOrderItemCreate,
-  },
-}))
-
 describe("Quote Conversion Service", () => {
-  // Utiliser any pour éviter les erreurs de typage, puis assigner à notre interface
   let mockQuote: any
   let mockQuoteItems: any[]
   let mockPurchaseOrder: any
@@ -127,7 +126,11 @@ describe("Quote Conversion Service", () => {
     }
 
     // Configurer les mocks
+    // Ignore next line because of ts error
+    // @ts-ignore next-line
     mockQuoteFindOne.mockResolvedValue(mockQuote)
+    // Ignore next line because of ts error
+    // @ts-ignore next-line
     mockPurchaseOrderCreate.mockResolvedValue(mockPurchaseOrder)
     mockPurchaseOrderItemCreate.mockImplementation((data: any) => {
       return Promise.resolve({
@@ -142,6 +145,7 @@ describe("Quote Conversion Service", () => {
   })
 
   it("should throw error if quote is not found", async () => {
+    // @ts-ignore next-line
     mockQuoteFindOne.mockResolvedValue(null)
 
     await expect(
