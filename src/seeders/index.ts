@@ -1,7 +1,6 @@
 import { sequelize } from "../config/database"
 import { seedActivities } from "./activitySeeder"
 import { seedCompaniesAndContacts } from "./companyContactSeeder"
-import { seedNotes } from "./noteSeeder"
 import { seedOpportunities } from "./opportunitySeeder"
 import { seedProducts } from "./productSeeder"
 import { seedQuotes } from "./quoteSeeder"
@@ -74,10 +73,6 @@ export const seedDatabase = async () => {
     // Créer les entreprises et contacts
     await seedCompaniesAndContacts(tenantId)
     console.log("Completed seeding companies and contacts")
-
-    // Créer des notes
-    await seedNotes(tenantId)
-    console.log("Completed seeding notes")
 
     // Créer des activités
     await seedActivities(tenantId)

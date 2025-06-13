@@ -1,7 +1,6 @@
 export * from "./authController"
 export * from "./companyController"
 export * from "./contactController"
-export * from "./noteController"
 export * from "./reminderController"
 export * from "./roleController"
 export * from "./statusController"
