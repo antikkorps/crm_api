@@ -77,6 +77,16 @@ export const Activity = sequelize.define(
       allowNull: true,
       comment: "PENDING, IN_PROGRESS, COMPLETED, CANCELLED",
     },
+    progress: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
+      validate: {
+        min: 0,
+        max: 100,
+      },
+      comment: "Task progress percentage (0-100)",
+    },
 
     // Champs spécifiques pour les activités de type EMAIL
     emailSubject: {
