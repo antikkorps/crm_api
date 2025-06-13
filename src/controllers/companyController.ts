@@ -243,6 +243,12 @@ export const searchCompanies = async (ctx: Context) => {
     if (query.city) whereClause.city = { [Op.iLike]: `%${query.city}%` }
     if (query.country) whereClause.country = { [Op.iLike]: `%${query.country}%` }
     if (query.size) whereClause.size = { [Op.eq]: query.size }
+    if (query.client_number)
+      whereClause.client_number = { [Op.iLike]: `%${query.client_number}%` }
+    if (query.client_group)
+      whereClause.client_group = { [Op.iLike]: `%${query.client_group}%` }
+    if (query.code_regional)
+      whereClause.code_regional = { [Op.iLike]: `%${query.code_regional}%` }
 
     // Filtrage par globalRevenue (min et max)
     if (query.minRevenue)

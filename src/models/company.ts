@@ -5,13 +5,17 @@ import { Speciality } from "./speciality"
 
 export interface CompanyInstance extends Model {
   id: string
+  client_number?: string
   name: string
   description?: string
   website?: string
+  client_group?: string
   industry?: string
   address?: string
+  address_complement?: string
   city?: string
   zipCode?: string
+  code_regional?: string
   country?: string
   size?: string
   operatingRooms?: number
@@ -37,6 +41,11 @@ export const Company = sequelize.define(
       primaryKey: true,
       defaultValue: () => uuidv4(),
     },
+    client_number: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Numéro de client unique pour l'entreprise",
+    },
     name: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -49,6 +58,11 @@ export const Company = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    client_group: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Groupe de clients auquel appartient l'entreprise",
+    },
     industry: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -57,6 +71,11 @@ export const Company = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    address_complement: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Complément d'adresse de l'entreprise",
+    },
     city: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -64,6 +83,11 @@ export const Company = sequelize.define(
     zipCode: {
       type: DataTypes.STRING,
       allowNull: true,
+    },
+    code_regional: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Code régional de l'entreprise",
     },
     country: {
       type: DataTypes.STRING,

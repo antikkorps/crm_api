@@ -150,6 +150,7 @@ export const seedCompaniesAndContacts = async (tenantId: string) => {
         size: ["1-10", "11-50", "51-200", "201-500", "501-1000", "+1000"][
           Math.floor(Math.random() * 6)
         ],
+        operatingRooms: Math.floor(Math.random() * 21),
         statusId,
         assignedToId,
         tenantId,

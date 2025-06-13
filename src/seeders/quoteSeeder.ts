@@ -139,7 +139,7 @@ export const seedQuotes = async (tenantId: string) => {
       } else if (statusProbability < 0.95) {
         status = QuoteStatus.REJECTED
       } else {
-        status = QuoteStatus.EXPIRED
+        status = QuoteStatus.CANCELLED
       }
 
       // Créer une date de validité (entre 15 et 90 jours à partir de maintenant)
@@ -164,8 +164,8 @@ export const seedQuotes = async (tenantId: string) => {
         validUntil,
         totalAmount: 0, // Sera calculé après l'ajout des éléments
         taxes: 0, // Sera calculé après l'ajout des éléments
-        discountValue: hasDiscount ? discountValue : null,
-        discountType: hasDiscount ? discountType : null,
+        discountAmount: hasDiscount ? discountValue : null,
+        discountType: hasDiscount ? discountType.toUpperCase() : null,
         notes:
           Math.random() > 0.5
             ? quoteNotes[Math.floor(Math.random() * quoteNotes.length)]
@@ -201,16 +201,16 @@ export const seedQuotes = async (tenantId: string) => {
         const taxRate = [0, 5.5, 10, 20][Math.floor(Math.random() * 4)]
 
         const hasItemDiscount = Math.random() > 0.8
-        const itemDiscountType = Math.random() > 0.5 ? "percentage" : "fixed"
+        const itemDiscountType = Math.random() > 0.5 ? "PERCENTAGE" : "FIXED"
         const itemDiscount =
-          itemDiscountType === "percentage"
+          itemDiscountType === "PERCENTAGE"
             ? Math.floor(Math.random() * 15) + 5 // 5-20%
             : Math.floor(Math.random() * 100) + 50 // 50-150€
 
         // Calculer le total de l'élément
         let itemTotal = quantity * unitPrice
         if (hasItemDiscount) {
-          if (itemDiscountType === "percentage") {
+          if (itemDiscountType === "PERCENTAGE") {
             itemTotal = itemTotal * (1 - itemDiscount / 100)
           } else {
             itemTotal = Math.max(0, itemTotal - itemDiscount)
@@ -225,15 +225,17 @@ export const seedQuotes = async (tenantId: string) => {
         await QuoteItem.create({
           id: uuidv4(),
           quoteId: quote.id,
-          name: productNames[Math.floor(Math.random() * productNames.length)],
+          // The QuoteItemInstance doesn't have a name field, using description instead
           description:
+            productNames[Math.floor(Math.random() * productNames.length)] +
+            ": " +
             productDescriptions[Math.floor(Math.random() * productDescriptions.length)],
           quantity,
           unitPrice,
           taxRate,
           discount: hasItemDiscount ? itemDiscount : null,
           discountType: hasItemDiscount ? itemDiscountType : null,
-          total: itemTotal,
+          totalPrice: itemTotal,
           position: j,
           createdAt: quote.createdAt,
           updatedAt: quote.updatedAt,
@@ -241,11 +243,11 @@ export const seedQuotes = async (tenantId: string) => {
       }
 
       // Appliquer la remise globale si nécessaire
-      if (quote.discountValue && quote.discountType) {
-        if (quote.discountType === "percentage") {
-          totalAmount = totalAmount * (1 - Number(quote.discountValue) / 100)
+      if (quote.discountAmount && quote.discountType) {
+        if (quote.discountType === "PERCENTAGE") {
+          totalAmount = totalAmount * (1 - Number(quote.discountAmount) / 100)
         } else {
-          totalAmount = Math.max(0, totalAmount - Number(quote.discountValue))
+          totalAmount = Math.max(0, totalAmount - Number(quote.discountAmount))
         }
       }
 
