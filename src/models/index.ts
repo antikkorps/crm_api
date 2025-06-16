@@ -6,7 +6,6 @@ import CompanySpecialityModel, { CompanySpeciality } from "./companySpeciality"
 import ContactModel, { Contact } from "./contact"
 import ContactSegmentModel, { ContactSegment } from "./contactSegment"
 import ExternalIntegrationModel, { ExternalIntegration } from "./externalIntegration"
-import NoteModel, { Note } from "./note"
 import NotificationModel, { Notification } from "./notification"
 import NotificationTemplateModel, { NotificationTemplate } from "./notificationTemplate"
 import OpportunityModel, { Opportunity } from "./opportunity"
@@ -37,7 +36,6 @@ TenantModel.hasMany(RoleModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(StatusModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(ContactModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(CompanyModel, { foreignKey: "tenantId" })
-TenantModel.hasMany(NoteModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(ActivityModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(SegmentModel, { foreignKey: "tenantId" })
 TenantModel.hasMany(ReminderModel, { foreignKey: "tenantId" })
@@ -57,7 +55,6 @@ UserModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
 UserModel.belongsTo(RoleModel, { foreignKey: "roleId" })
 UserModel.hasMany(ContactModel, { foreignKey: "assignedToId" })
 UserModel.hasMany(CompanyModel, { foreignKey: "assignedToId" })
-UserModel.hasMany(NoteModel, { foreignKey: "createdById" })
 UserModel.hasMany(ActivityModel, { foreignKey: "createdById" })
 UserModel.hasMany(ActivityModel, { foreignKey: "assignedToId", as: "assignedActivities" })
 UserModel.hasMany(SegmentModel, { foreignKey: "createdById" })
@@ -81,7 +78,6 @@ ContactModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
 ContactModel.belongsTo(StatusModel, { foreignKey: "statusId" })
 ContactModel.belongsTo(CompanyModel, { as: "company", foreignKey: "companyId" })
 ContactModel.belongsTo(UserModel, { as: "assignedTo", foreignKey: "assignedToId" })
-ContactModel.hasMany(NoteModel, { foreignKey: "contactId" })
 ContactModel.hasMany(ActivityModel, { foreignKey: "contactId" })
 ContactModel.hasMany(ReminderModel, { foreignKey: "contactId" })
 ContactModel.belongsToMany(SegmentModel, {
@@ -95,7 +91,6 @@ CompanyModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
 CompanyModel.belongsTo(StatusModel, { as: "status", foreignKey: "statusId" })
 CompanyModel.belongsTo(UserModel, { as: "assignedTo", foreignKey: "assignedToId" })
 CompanyModel.hasMany(ContactModel, { foreignKey: "companyId" })
-CompanyModel.hasMany(NoteModel, { foreignKey: "companyId" })
 CompanyModel.hasMany(ActivityModel, { foreignKey: "companyId" })
 CompanyModel.hasMany(ReminderModel, { foreignKey: "companyId" })
 CompanyModel.hasMany(OpportunityModel, { foreignKey: "companyId" })
@@ -111,12 +106,6 @@ SpecialityModel.belongsToMany(CompanyModel, {
   foreignKey: "specialityId",
   otherKey: "companyId",
 })
-
-// Relations Note
-NoteModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
-NoteModel.belongsTo(ContactModel, { foreignKey: "contactId" })
-NoteModel.belongsTo(CompanyModel, { foreignKey: "companyId" })
-NoteModel.belongsTo(UserModel, { as: "createdBy", foreignKey: "createdById" })
 
 // Relations Activity
 ActivityModel.belongsTo(TenantModel, { foreignKey: "tenantId" })
@@ -248,7 +237,6 @@ export {
   Contact,
   ContactSegment,
   ExternalIntegration,
-  Note,
   Notification,
   NotificationTemplate,
   Opportunity,

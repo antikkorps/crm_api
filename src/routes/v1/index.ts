@@ -4,7 +4,6 @@ import analyticsRoutes from "../analyticsRoutes"
 import companyRoutes from "../companyRoutes"
 import contactRoutes from "../contactRoutes"
 import integrationsRoutes from "../integrationsRoutes"
-import noteRoutes from "../noteRoutes"
 import notificationRoutes from "../notificationRoutes"
 import productRoutes from "../productRoutes"
 import purchaseOrderRoutes from "../purchaseOrderRoutes"
@@ -67,7 +66,6 @@ configureV1Routes(contactRoutes)
 configureV1Routes(companyRoutes)
 configureV1Routes(roleRoutes)
 configureV1Routes(statusRoutes)
-configureV1Routes(noteRoutes)
 configureV1Routes(activityRoutes)
 configureV1Routes(segmentRoutes)
 configureV1Routes(reminderRoutes)

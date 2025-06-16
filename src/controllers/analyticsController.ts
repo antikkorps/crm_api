@@ -1,6 +1,14 @@
 import { Context } from "koa"
 import { Op, Sequelize } from "sequelize"
-import { Company, Contact, Note, Opportunity, Reminder, Status, User } from "../models"
+import {
+  Activity,
+  Company,
+  Contact,
+  Opportunity,
+  Reminder,
+  Status,
+  User,
+} from "../models"
 import type { StatusResult, UserResult } from "../types/results"
 /**
  * Obtenir un résumé global pour le dashboard
@@ -12,7 +20,7 @@ export const getDashboardSummary = async (ctx: Context) => {
     // Obtenir les statistiques de base
     const contactCount = await Contact.count({ where: { tenantId } })
     const companyCount = await Company.count({ where: { tenantId } })
-    const noteCount = await Note.count({ where: { tenantId } })
+    const noteCount = await Activity.count({ where: { tenantId, type: "NOTE" } })
 
     // Rappels à venir pour l'utilisateur
     const upcomingReminders = await Reminder.count({
@@ -231,9 +239,10 @@ export const getActivityTrends = async (ctx: Context) => {
     })
 
     // Requête pour les notes créées par période
-    const noteTrends = await Note.findAll({
+    const noteTrends = await Activity.findAll({
       where: {
         tenantId,
+        type: "NOTE",
         createdAt: {
           [Op.gte]: startDate,
         },
@@ -295,9 +304,10 @@ export const getUserPerformance = async (ctx: Context) => {
         })
 
         // Compter les notes créées par cet utilisateur
-        const notesCount = await Note.count({
+        const notesCount = await Activity.count({
           where: {
             tenantId,
+            type: "NOTE",
             createdById: userId,
           },
         })

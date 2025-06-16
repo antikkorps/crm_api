@@ -9,6 +9,89 @@ import { paginatedQuery } from "../utils/pagination"
  */
 export const getAllActivities = async (ctx: Context) => {
   try {
+    const whereClause: any = { tenantId: ctx.state.user.tenantId }
+
+    // Filtrage par types si le paramètre est fourni
+    if (ctx.query.types) {
+      const types = (ctx.query.types as string)
+        .split(",")
+        .map((type) => type.trim().toUpperCase())
+
+      whereClause.type = { [Op.in]: types }
+    }
+
+    // Filtrage par dates
+    if (ctx.query.startDate) {
+      whereClause.createdAt = { [Op.gte]: new Date(ctx.query.startDate as string) }
+    }
+    if (ctx.query.endDate) {
+      const endDate = new Date(ctx.query.endDate as string)
+      endDate.setHours(23, 59, 59, 999) // Fin de journée
+      whereClause.createdAt = {
+        ...whereClause.createdAt,
+        [Op.lte]: endDate,
+      }
+    }
+
+    // Filtrage par priorité
+    if (ctx.query.priority) {
+      const priorities = (ctx.query.priority as string)
+        .split(",")
+        .map((priority) => priority.trim().toUpperCase())
+      whereClause.priority = { [Op.in]: priorities }
+    }
+
+    // Filtrage par statut générique
+    if (ctx.query.status) {
+      const statuses = (ctx.query.status as string)
+        .split(",")
+        .map((status) => status.trim().toUpperCase())
+      whereClause.status = { [Op.in]: statuses }
+    }
+
+    // Filtrage par statut de tâche
+    if (ctx.query.taskStatus) {
+      const taskStatuses = (ctx.query.taskStatus as string)
+        .split(",")
+        .map((status) => status.trim().toUpperCase())
+      whereClause.taskStatus = { [Op.in]: taskStatuses }
+    }
+
+    // Filtrage par résultat d'appel
+    if (ctx.query.callOutcome) {
+      const callOutcomes = (ctx.query.callOutcome as string)
+        .split(",")
+        .map((outcome) => outcome.trim().toUpperCase())
+      whereClause.callOutcome = { [Op.in]: callOutcomes }
+    }
+
+    // Filtrage par statut d'email
+    if (ctx.query.emailStatus) {
+      const emailStatuses = (ctx.query.emailStatus as string)
+        .split(",")
+        .map((status) => status.trim().toUpperCase())
+      whereClause.emailStatus = { [Op.in]: emailStatuses }
+    }
+
+    // Filtrage par utilisateur créateur
+    if (ctx.query.createdBy) {
+      const createdByIds = (ctx.query.createdBy as string)
+        .split(",")
+        .map((id) => id.trim())
+      whereClause.createdById = { [Op.in]: createdByIds }
+    }
+
+    // Filtrage par utilisateur assigné
+    if (ctx.query.assignedTo) {
+      const assignedToIds = (ctx.query.assignedTo as string)
+        .split(",")
+        .map((id) => id.trim())
+      whereClause.assignedToId = { [Op.in]: assignedToIds }
+    }
+
+    // Appliquer les filtres de progression (uniquement pour les tâches)
+    applyProgressFilters(whereClause, ctx)
+
     const result = await paginatedQuery(Activity, ctx, {
       include: [
         { model: User, as: "createdBy", attributes: { exclude: ["password"] } },
@@ -16,7 +99,7 @@ export const getAllActivities = async (ctx: Context) => {
         { model: Contact },
         { model: Company },
       ],
-      where: { tenantId: ctx.state.user.tenantId },
+      where: whereClause,
       order: [["createdAt", "DESC"]],
     })
 
@@ -133,11 +216,94 @@ export const getActivitiesByType = async (ctx: Context) => {
  */
 export const getActivitiesByContact = async (ctx: Context) => {
   try {
+    const whereClause: any = {
+      tenantId: ctx.state.user.tenantId,
+      contactId: ctx.params.contactId,
+    }
+
+    // Filtrage par types si le paramètre est fourni
+    if (ctx.query.types) {
+      const types = (ctx.query.types as string)
+        .split(",")
+        .map((type) => type.trim().toUpperCase())
+
+      whereClause.type = { [Op.in]: types }
+    }
+
+    // Filtrage par dates
+    if (ctx.query.startDate) {
+      whereClause.createdAt = { [Op.gte]: new Date(ctx.query.startDate as string) }
+    }
+    if (ctx.query.endDate) {
+      const endDate = new Date(ctx.query.endDate as string)
+      endDate.setHours(23, 59, 59, 999) // Fin de journée
+      whereClause.createdAt = {
+        ...whereClause.createdAt,
+        [Op.lte]: endDate,
+      }
+    }
+
+    // Filtrage par priorité
+    if (ctx.query.priority) {
+      const priorities = (ctx.query.priority as string)
+        .split(",")
+        .map((priority) => priority.trim().toUpperCase())
+      whereClause.priority = { [Op.in]: priorities }
+    }
+
+    // Filtrage par statut générique
+    if (ctx.query.status) {
+      const statuses = (ctx.query.status as string)
+        .split(",")
+        .map((status) => status.trim().toUpperCase())
+      whereClause.status = { [Op.in]: statuses }
+    }
+
+    // Filtrage par statut de tâche
+    if (ctx.query.taskStatus) {
+      const taskStatuses = (ctx.query.taskStatus as string)
+        .split(",")
+        .map((status) => status.trim().toUpperCase())
+      whereClause.taskStatus = { [Op.in]: taskStatuses }
+    }
+
+    // Filtrage par résultat d'appel
+    if (ctx.query.callOutcome) {
+      const callOutcomes = (ctx.query.callOutcome as string)
+        .split(",")
+        .map((outcome) => outcome.trim().toUpperCase())
+      whereClause.callOutcome = { [Op.in]: callOutcomes }
+    }
+
+    // Filtrage par statut d'email
+    if (ctx.query.emailStatus) {
+      const emailStatuses = (ctx.query.emailStatus as string)
+        .split(",")
+        .map((status) => status.trim().toUpperCase())
+      whereClause.emailStatus = { [Op.in]: emailStatuses }
+    }
+
+    // Filtrage par utilisateur créateur
+    if (ctx.query.createdBy) {
+      const createdByIds = (ctx.query.createdBy as string)
+        .split(",")
+        .map((id) => id.trim())
+      whereClause.createdById = { [Op.in]: createdByIds }
+    }
+
+    // Filtrage par utilisateur assigné
+    if (ctx.query.assignedTo) {
+      const assignedToIds = (ctx.query.assignedTo as string)
+        .split(",")
+        .map((id) => id.trim())
+      whereClause.assignedToId = { [Op.in]: assignedToIds }
+    }
+
+    // Appliquer les filtres de progression (uniquement pour les tâches)
+    applyProgressFilters(whereClause, ctx)
+
     const result = await paginatedQuery(Activity, ctx, {
-      where: {
-        tenantId: ctx.state.user.tenantId,
-        contactId: ctx.params.contactId,
-      },
+      where: whereClause,
       include: [
         { model: User, as: "createdBy", attributes: { exclude: ["password"] } },
         { model: User, as: "assignedTo", attributes: { exclude: ["password"] } },
@@ -157,11 +323,94 @@ export const getActivitiesByContact = async (ctx: Context) => {
  */
 export const getActivitiesByCompany = async (ctx: Context) => {
   try {
+    const whereClause: any = {
+      tenantId: ctx.state.user.tenantId,
+      companyId: ctx.params.companyId,
+    }
+
+    // Filtrage par types si le paramètre est fourni
+    if (ctx.query.types) {
+      const types = (ctx.query.types as string)
+        .split(",")
+        .map((type) => type.trim().toUpperCase())
+
+      whereClause.type = { [Op.in]: types }
+    }
+
+    // Filtrage par dates
+    if (ctx.query.startDate) {
+      whereClause.createdAt = { [Op.gte]: new Date(ctx.query.startDate as string) }
+    }
+    if (ctx.query.endDate) {
+      const endDate = new Date(ctx.query.endDate as string)
+      endDate.setHours(23, 59, 59, 999) // Fin de journée
+      whereClause.createdAt = {
+        ...whereClause.createdAt,
+        [Op.lte]: endDate,
+      }
+    }
+
+    // Filtrage par priorité
+    if (ctx.query.priority) {
+      const priorities = (ctx.query.priority as string)
+        .split(",")
+        .map((priority) => priority.trim().toUpperCase())
+      whereClause.priority = { [Op.in]: priorities }
+    }
+
+    // Filtrage par statut générique
+    if (ctx.query.status) {
+      const statuses = (ctx.query.status as string)
+        .split(",")
+        .map((status) => status.trim().toUpperCase())
+      whereClause.status = { [Op.in]: statuses }
+    }
+
+    // Filtrage par statut de tâche
+    if (ctx.query.taskStatus) {
+      const taskStatuses = (ctx.query.taskStatus as string)
+        .split(",")
+        .map((status) => status.trim().toUpperCase())
+      whereClause.taskStatus = { [Op.in]: taskStatuses }
+    }
+
+    // Filtrage par résultat d'appel
+    if (ctx.query.callOutcome) {
+      const callOutcomes = (ctx.query.callOutcome as string)
+        .split(",")
+        .map((outcome) => outcome.trim().toUpperCase())
+      whereClause.callOutcome = { [Op.in]: callOutcomes }
+    }
+
+    // Filtrage par statut d'email
+    if (ctx.query.emailStatus) {
+      const emailStatuses = (ctx.query.emailStatus as string)
+        .split(",")
+        .map((status) => status.trim().toUpperCase())
+      whereClause.emailStatus = { [Op.in]: emailStatuses }
+    }
+
+    // Filtrage par utilisateur créateur
+    if (ctx.query.createdBy) {
+      const createdByIds = (ctx.query.createdBy as string)
+        .split(",")
+        .map((id) => id.trim())
+      whereClause.createdById = { [Op.in]: createdByIds }
+    }
+
+    // Filtrage par utilisateur assigné
+    if (ctx.query.assignedTo) {
+      const assignedToIds = (ctx.query.assignedTo as string)
+        .split(",")
+        .map((id) => id.trim())
+      whereClause.assignedToId = { [Op.in]: assignedToIds }
+    }
+
+    // Appliquer les filtres de progression (uniquement pour les tâches)
+    applyProgressFilters(whereClause, ctx)
+
     const result = await paginatedQuery(Activity, ctx, {
-      where: {
-        tenantId: ctx.state.user.tenantId,
-        companyId: ctx.params.companyId,
-      },
+      where: whereClause,
       include: [
         { model: User, as: "createdBy", attributes: { exclude: ["password"] } },
         { model: User, as: "assignedTo", attributes: { exclude: ["password"] } },
@@ -272,47 +521,47 @@ export const createActivity = async (ctx: Context) => {
  */
 export const updateActivity = async (ctx: Context) => {
   try {
-    const activity = await Activity.findByPk(ctx.params.id);
+    const activity = await Activity.findByPk(ctx.params.id)
 
     if (!activity) {
-      throw new NotFoundError(`Activity with ID ${ctx.params.id} not found`);
+      throw new NotFoundError(`Activity with ID ${ctx.params.id} not found`)
     }
 
     // Vérifier les permissions (créateur ou assigné)
-    const userId = ctx.state.user.id;
-    const createdById = activity.get("createdById");
-    const assignedToId = activity.get("assignedToId");
+    const userId = ctx.state.user.id
+    const createdById = activity.get("createdById")
+    const assignedToId = activity.get("assignedToId")
 
     if (userId !== createdById && userId !== assignedToId) {
       // Si l'utilisateur n'est pas le créateur et n'est pas assigné,
       // vérifier s'il est admin pour autoriser quand même
-      const user = await User.findByPk(userId);
-      
+      const user = await User.findByPk(userId)
+
       // Utiliser une assertion de type pour indiquer que roleId est une chaîne
-      const roleId = user?.get("roleId") as string | undefined;
-      const role = roleId ? await Role.findByPk(roleId) : null;
-      
+      const roleId = user?.get("roleId") as string | undefined
+      const role = roleId ? await Role.findByPk(roleId) : null
+
       if (!role || role.get("name") !== "Admin") {
         throw new ForbiddenError(
           "You don't have permission to update this activity",
           "INSUFFICIENT_PERMISSIONS",
           { activityId: ctx.params.id, userId }
-        );
+        )
       }
     }
 
-    const updateData = (ctx.request as any).body;
+    const updateData = (ctx.request as any).body
 
     // Si le type est modifié, valider le nouveau type
     if (updateData.type && updateData.type !== activity.get("type")) {
       if (!["NOTE", "CALL", "EMAIL", "MEETING", "TASK"].includes(updateData.type)) {
-        throw new BadRequestError("Invalid activity type");
+        throw new BadRequestError("Invalid activity type")
       }
       // Validation des champs pour le nouveau type
-      validateActivityFields({ ...activity.toJSON(), ...updateData });
+      validateActivityFields({ ...activity.toJSON(), ...updateData })
     }
 
-    await activity.update(updateData);
+    await activity.update(updateData)
 
     // Récupérer l'activité mise à jour avec ses relations
     const updatedActivity = await Activity.findByPk(ctx.params.id, {
@@ -322,13 +571,13 @@ export const updateActivity = async (ctx: Context) => {
         { model: Contact },
         { model: Company },
       ],
-    });
+    })
 
-    ctx.body = updatedActivity;
+    ctx.body = updatedActivity
   } catch (error: unknown) {
     // Ajouter plus de détails au log d'erreur
-    console.error("Error updating activity:", error);
-    throw error;
+    console.error("Error updating activity:", error)
+    throw error
   }
 }
 
@@ -352,6 +601,54 @@ export const deleteActivity = async (ctx: Context) => {
     ctx.status = 204
   } catch (error: unknown) {
     throw error
+  }
+}
+
+/**
+ * Applique les filtres de progression uniquement aux tâches
+ */
+function applyProgressFilters(whereClause: any, ctx: Context): void {
+  // Vérifier si des filtres de progression sont demandés
+  const hasProgressFilter =
+    ctx.query.progress || ctx.query.progressMin || ctx.query.progressMax
+
+  if (!hasProgressFilter) {
+    return // Aucun filtre de progression, ne rien faire
+  }
+
+  // Si des filtres de progression sont demandés, on force le type à TASK
+  // et on ignore tout autre filtre de type
+  whereClause.type = "TASK"
+
+  // Filtrage par progression exacte (priorité sur les filtres de plage)
+  if (ctx.query.progress) {
+    const progress = parseInt(ctx.query.progress as string)
+    if (!isNaN(progress) && progress >= 0 && progress <= 100) {
+      whereClause.progress = progress
+      return // Sortir ici pour éviter que les filtres de plage écrasent le filtre exact
+    }
+  }
+
+  if (ctx.query.progressMin || ctx.query.progressMax) {
+    const progressFilter: any = {}
+
+    if (ctx.query.progressMin) {
+      const min = parseInt(ctx.query.progressMin as string)
+      if (!isNaN(min) && min >= 0 && min <= 100) {
+        progressFilter[Op.gte] = min
+      }
+    }
+
+    if (ctx.query.progressMax) {
+      const max = parseInt(ctx.query.progressMax as string)
+      if (!isNaN(max) && max <= 100 && max >= 0) {
+        progressFilter[Op.lte] = max
+      }
+    }
+
+    if (progressFilter[Op.gte] !== undefined || progressFilter[Op.lte] !== undefined) {
+      whereClause.progress = progressFilter
+    }
   }
 }
 

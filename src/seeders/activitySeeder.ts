@@ -153,6 +153,52 @@ export const seedActivities = async (tenantId: string) => {
         type: "NOTE",
         templates: [
           {
+            title: "Note de contact",
+            content:
+              "Premier contact établi. Très bon accueil, personne intéressée par nos services.",
+          },
+          {
+            title: "Information importante",
+            content:
+              "Budget annuel confirmé à 15 000€. Décision attendue avant fin du mois.",
+          },
+          {
+            title: "Feedback client",
+            content:
+              "Client satisfait de notre proposition mais souhaite négocier les délais.",
+          },
+          {
+            title: "Point technique",
+            content:
+              "Spécifications techniques clarifiées. Intégration avec leur système ERP requise.",
+          },
+          {
+            title: "Contexte concurrentiel",
+            content:
+              "Travaillent actuellement avec [concurrent]. Points de douleur identifiés : support client et coûts.",
+          },
+          {
+            title: "Profil décisionnel",
+            content:
+              "Interlocuteur principal mais décision collégiale avec le comité de direction.",
+          },
+          {
+            title: "Historique relation",
+            content:
+              "Ancien client de 2019 à 2021. Changement d'équipe, opportunité de renouer la relation.",
+          },
+          {
+            title: "Urgence projet",
+            content:
+              "Projet à démarrer rapidement suite à une croissance inattendue de leur activité.",
+          },
+        ],
+        extras: {},
+      },
+      {
+        type: "NOTE",
+        templates: [
+          {
             title: "Opportunité gagnée",
             content:
               "Le client a accepté notre proposition. Contrat d'une valeur de 15 000€ sur 12 mois.",
