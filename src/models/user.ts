@@ -54,6 +54,22 @@ export const User = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    phone: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    jobTitle: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    bio: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    lastLoginAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
