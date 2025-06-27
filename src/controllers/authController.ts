@@ -2,7 +2,11 @@ import bcrypt from "bcrypt"
 import jwt from "jsonwebtoken"
 import { Context } from "koa"
 import { Role, Tenant, User } from "../models"
-import type { UpdatePasswordRequest, UpdateProfileRequest } from "../types/models"
+import type {
+  UpdateAvatarRequest,
+  UpdatePasswordRequest,
+  UpdateProfileRequest,
+} from "../types/models"
 
 // Enregistrement d'un nouvel utilisateur
 export const register = async (ctx: Context) => {
@@ -294,6 +298,75 @@ export const updateProfile = async (ctx: Context) => {
     ctx.status = 200
     ctx.body = {
       message: "Profil mis à jour avec succès",
+      success: true,
+      user: {
+        id: updatedUser!.get("id"),
+        email: updatedUser!.get("email"),
+        firstName: updatedUser!.get("firstName"),
+        lastName: updatedUser!.get("lastName"),
+        isActive: updatedUser!.get("isActive"),
+        isSuperAdmin: updatedUser!.get("isSuperAdmin"),
+        roleId: updatedUser!.get("roleId"),
+        tenantId: updatedUser!.get("tenantId"),
+        avatarUrl: updatedUser!.get("avatarUrl"),
+        phone: updatedUser!.get("phone"),
+        jobTitle: updatedUser!.get("jobTitle"),
+        bio: updatedUser!.get("bio"),
+        lastLoginAt: updatedUser!.get("lastLoginAt"),
+        createdAt: updatedUser!.get("createdAt"),
+        updatedAt: updatedUser!.get("updatedAt"),
+        role: updatedUser!.get("Role"),
+        tenant: updatedUser!.get("Tenant"),
+      },
+    }
+  } catch (error: unknown) {
+    ctx.status = 500
+    ctx.body = { error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+// Mettre à jour l'avatar de l'utilisateur
+export const updateAvatar = async (ctx: Context) => {
+  try {
+    const userId = ctx.state.user.id
+    const { avatarUrl }: UpdateAvatarRequest = ctx.request.body as any
+
+    // Validation des données
+    if (!avatarUrl) {
+      ctx.status = 400
+      ctx.body = { error: "L'URL de l'avatar est requise" }
+      return
+    }
+
+    // Validation de l'URL
+    try {
+      new URL(avatarUrl)
+    } catch {
+      ctx.status = 400
+      ctx.body = { error: "L'URL de l'avatar n'est pas valide" }
+      return
+    }
+
+    // Récupérer l'utilisateur
+    const user = await User.findByPk(userId)
+    if (!user) {
+      ctx.status = 404
+      ctx.body = { error: "Utilisateur non trouvé" }
+      return
+    }
+
+    // Mettre à jour l'avatar
+    await user.update({ avatarUrl })
+
+    // Récupérer l'utilisateur mis à jour avec les relations
+    const updatedUser = await User.findByPk(userId, {
+      include: [{ model: Role }, { model: Tenant }],
+      attributes: { exclude: ["password"] },
+    })
+
+    ctx.status = 200
+    ctx.body = {
+      message: "Avatar mis à jour avec succès",
       success: true,
       user: {
         id: updatedUser!.get("id"),

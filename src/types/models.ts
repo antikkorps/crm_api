@@ -60,3 +60,13 @@ export interface UpdateProfileResponse {
   success: boolean
   user: UserResponse
 }
+
+export interface UpdateAvatarRequest {
+  avatarUrl: string
+}
+
+export interface UpdateAvatarResponse {
+  message: string
+  success: boolean
+  user: UserResponse
+}
