@@ -36,7 +36,7 @@ export const extractPaginationParams = (
   if (requestedLimit === -1) {
     return {
       page: 1,
-      limit: null as any, // Pour sequelize, null signifie "pas de limite"
+      limit: 0, // Utiliser 0 au lieu de null pour Sequelize
       offset: 0,
       disabled: true,
     }
@@ -146,6 +146,11 @@ export const paginatedQuery = async <T extends Model>(
   if (!params.disabled) {
     options.limit = params.limit
     options.offset = params.offset
+  } else {
+    // Pour désactiver la pagination, ne pas inclure limit et offset
+    // Sequelize retournera tous les résultats
+    delete options.limit
+    delete options.offset
   }
 
   // Exécuter la requête avec pagination
