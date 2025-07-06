@@ -141,6 +141,7 @@ export const paginatedQuery = async <T extends Model>(
   // Ajouter les paramètres de pagination aux options de requête
   const options = {
     ...findOptions,
+    distinct: true, // Éviter les doublons dus aux relations hasMany
   }
 
   if (!params.disabled) {
