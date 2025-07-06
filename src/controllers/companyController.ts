@@ -78,7 +78,10 @@ export const getAllCompanies = async (ctx: Context) => {
     }
 
     // Suggestion d'élargir la recherche si peu de résultats (même logique que searchCompanies)
-    if (result.pagination.totalItems < 5) {
+    // Ne pas afficher de suggestion si limit=-1 (on a déjà tous les résultats)
+    const isLimitDisabled = parseInt(ctx.query.limit as string) === -1
+
+    if (!isLimitDisabled && result.pagination.totalItems < 5) {
       // Récupérer le nombre total d'entreprises sans filtre
       const totalCompanies = await Company.count({
         where: { tenantId: ctx.state.user.tenantId },
@@ -447,7 +450,10 @@ export const searchCompanies = async (ctx: Context) => {
     }
 
     // Ajouter une suggestion d'élargir la recherche si peu de résultats
-    if (result.pagination.totalItems < 5) {
+    // Ne pas afficher de suggestion si limit=-1 (on a déjà tous les résultats)
+    const isLimitDisabled = parseInt(ctx.query.limit as string) === -1
+
+    if (!isLimitDisabled && result.pagination.totalItems < 5) {
       // Récupérer le nombre total d'entreprises sans filtre
       const totalCompanies = await Company.count({
         where: { tenantId: ctx.state.user.tenantId },
