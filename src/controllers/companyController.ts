@@ -6,6 +6,19 @@ import { paginatedQuery } from "../utils/pagination"
 
 export const getAllCompanies = async (ctx: Context) => {
   try {
+    const { query } = ctx
+
+    // Détection automatique des filtres (exclure seulement les paramètres de pagination)
+    const hasSearchFilters = Object.keys(query).some(
+      (key) => key !== "page" && key !== "limit" && key !== "offset"
+    )
+
+    if (hasSearchFilters) {
+      // Utiliser la logique de recherche si des filtres sont présents
+      return await searchCompanies(ctx)
+    }
+
+    // Logique getAll (sans filtres) - code existant
     // D'abord, trouvons les ID de statuts correspondant à "Won" ou "Gagné"
     const wonStatuses = await Status.findAll({
       attributes: ["id"],
@@ -62,6 +75,37 @@ export const getAllCompanies = async (ctx: Context) => {
         companyJson.generatedRevenue = revenueByCompanyId.get(company.get("id")) || 0
         return companyJson
       })
+    }
+
+    // Suggestion d'élargir la recherche si peu de résultats (même logique que searchCompanies)
+    if (result.pagination.totalItems < 5) {
+      // Récupérer le nombre total d'entreprises sans filtre
+      const totalCompanies = await Company.count({
+        where: { tenantId: ctx.state.user.tenantId },
+      })
+      // Construire l'URL pour récupérer toutes les entreprises
+      const baseUrl = ctx.request.url.split("?")[0]
+      const expandUrl = `${baseUrl}?limit=-1`
+      // Construire l'URL pour reset la pagination (page=1)
+      const currentUrl = new URL(ctx.request.url, ctx.request.origin)
+      currentUrl.searchParams.set("page", "1")
+      const resetUrl = `${baseUrl}?${currentUrl.searchParams.toString()}`
+      ctx.body = {
+        ...result,
+        suggestion: {
+          shouldExpand: true,
+          shouldResetPagination: result.pagination.currentPage > 1,
+          filteredCount: result.pagination.totalItems,
+          totalCount: totalCompanies,
+          expandUrl: expandUrl,
+          resetUrl: resetUrl,
+          message:
+            result.pagination.currentPage > 1
+              ? `Seulement ${result.pagination.totalItems} résultat(s) trouvé(s) sur la page 1. Voulez-vous voir toutes les ${totalCompanies} entreprises ?`
+              : `Seulement ${result.pagination.totalItems} résultat(s) trouvé(s). Voulez-vous voir toutes les ${totalCompanies} entreprises ?`,
+        },
+      }
+      return
     }
 
     ctx.body = result
@@ -402,7 +446,40 @@ export const searchCompanies = async (ctx: Context) => {
       })
     }
 
-    ctx.body = result
+    // Ajouter une suggestion d'élargir la recherche si peu de résultats
+    if (result.pagination.totalItems < 5) {
+      // Récupérer le nombre total d'entreprises sans filtre
+      const totalCompanies = await Company.count({
+        where: { tenantId: ctx.state.user.tenantId },
+      })
+
+      // Construire l'URL pour récupérer toutes les entreprises
+      const baseUrl = ctx.request.url.split("?")[0]
+      const expandUrl = `${baseUrl}?limit=-1`
+
+      // Construire l'URL pour reset la pagination (page=1)
+      const currentUrl = new URL(ctx.request.url, ctx.request.origin)
+      currentUrl.searchParams.set("page", "1")
+      const resetUrl = `${baseUrl}?${currentUrl.searchParams.toString()}`
+
+      ctx.body = {
+        ...result,
+        suggestion: {
+          shouldExpand: true,
+          shouldResetPagination: result.pagination.currentPage > 1,
+          filteredCount: result.pagination.totalItems,
+          totalCount: totalCompanies,
+          expandUrl: expandUrl,
+          resetUrl: resetUrl,
+          message:
+            result.pagination.currentPage > 1
+              ? `Seulement ${result.pagination.totalItems} résultat(s) trouvé(s) sur la page 1. Voulez-vous voir toutes les ${totalCompanies} entreprises ?`
+              : `Seulement ${result.pagination.totalItems} résultat(s) trouvé(s). Voulez-vous voir toutes les ${totalCompanies} entreprises ?`,
+        },
+      }
+    } else {
+      ctx.body = result
+    }
   } catch (error: unknown) {
     ctx.status = 500
     ctx.body = { error: error instanceof Error ? error.message : String(error) }
