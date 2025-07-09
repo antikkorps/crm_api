@@ -690,7 +690,9 @@ function validateActivityFields(data: any): void {
       }
       if (
         data.taskStatus &&
-        !["TODO", "IN_PROGRESS", "DONE", "CANCELED"].includes(data.taskStatus)
+        !["TODO", "IN_PROGRESS", "DONE", "COMPLETED", "CANCELED"].includes(
+          data.taskStatus
+        )
       ) {
         throw new BadRequestError("Invalid task status")
       }
