@@ -1,6 +1,6 @@
 import { Context } from "koa"
-import { Op } from "sequelize"
-import { Contact, ContactSegment, Segment, User } from "../models"
+import { Op, QueryTypes } from "sequelize"
+import { Contact, ContactSegment, Segment, User, sequelize } from "../models"
 import { BadRequestError, NotFoundError } from "../utils/errors"
 import { paginatedQuery } from "../utils/pagination"
 import { updateSegmentMembers } from "../utils/segmentRuleEngine"
@@ -237,14 +237,45 @@ export const evaluateSegment = async (ctx: Context) => {
       throw new BadRequestError("Cannot evaluate a non-dynamic segment")
     }
 
-    if (!segment.get("rules")) {
+    const rules = segment.get("rules")
+    if (!rules) {
       throw new BadRequestError("Segment has no rules to evaluate")
+    }
+
+    // Validation basique des règles
+    if (typeof rules !== "object" || rules === null) {
+      throw new BadRequestError("Invalid rules format: rules must be an object")
+    }
+
+    // Vérifier si c'est une condition simple
+    if ("field" in rules) {
+      const simpleRule = rules as any
+      if (!simpleRule.field || !simpleRule.operator) {
+        throw new BadRequestError("Invalid simple rule: field and operator are required")
+      }
+    }
+    // Vérifier si c'est une condition complexe
+    else if ("operator" in rules && "conditions" in rules) {
+      const complexRule = rules as any
+      if (
+        !complexRule.operator ||
+        !Array.isArray(complexRule.conditions) ||
+        complexRule.conditions.length === 0
+      ) {
+        throw new BadRequestError(
+          "Invalid complex rule: operator and non-empty conditions array are required"
+        )
+      }
+    } else {
+      throw new BadRequestError(
+        "Invalid rule format: must be either a simple condition or a complex condition"
+      )
     }
 
     const result = await updateSegmentMembers(
       segment.get("id") as string,
       ctx.state.user.tenantId,
-      segment.get("rules") as any
+      rules as any
     )
 
     ctx.body = {
@@ -351,6 +382,239 @@ export const removeContactFromSegment = async (ctx: Context) => {
     }
 
     ctx.status = 204
+  } catch (error: unknown) {
+    throw error
+  }
+}
+
+/**
+ * Récupère les statistiques des segments
+ */
+export const getSegmentStats = async (ctx: Context) => {
+  try {
+    const tenantId = ctx.state.user.tenantId
+    const now = new Date()
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+    // Statistiques de base
+    const totalSegments = await Segment.count({ where: { tenantId } })
+
+    // Segments dynamiques vs manuels
+    const dynamicSegments = await Segment.count({
+      where: {
+        tenantId,
+        isDynamic: true,
+      },
+    })
+
+    const manualSegments = totalSegments - dynamicSegments
+
+    // Total des contacts dans tous les segments
+    const totalContactsInSegments = await ContactSegment.count({
+      include: [
+        {
+          model: Segment,
+          where: { tenantId },
+          required: true,
+        },
+      ],
+    })
+
+    // Segments les plus populaires (par nombre de contacts)
+    const topSegments = await Segment.findAll({
+      attributes: [
+        "id",
+        "name",
+        "description",
+        "isDynamic",
+        "contactCount",
+        "lastEvaluatedAt",
+      ],
+      where: { tenantId },
+      order: [["contactCount", "DESC"]],
+      limit: 10,
+    })
+
+    // Segments récemment évalués
+    const recentlyEvaluatedSegments = await Segment.count({
+      where: {
+        tenantId,
+        lastEvaluatedAt: { [Op.gte]: thirtyDaysAgo },
+      },
+    })
+
+    // Segments avec le plus d'activité récente
+    const segmentsWithRecentActivity = await sequelize.query(
+      `
+      SELECT 
+        s.id,
+        s.name,
+        s."contactCount",
+        COUNT(a.id) as "activityCount"
+      FROM segments s
+      INNER JOIN contact_segments cs ON s.id = cs."segmentId"
+      INNER JOIN contacts c ON cs."contactId" = c.id
+      INNER JOIN activities a ON c.id = a."contactId"
+      WHERE s."tenantId" = :tenantId 
+        AND a."tenantId" = :tenantId 
+        AND a."createdAt" >= :thirtyDaysAgo
+      GROUP BY s.id, s.name, s."contactCount"
+      ORDER BY COUNT(a.id) DESC
+      LIMIT 5
+    `,
+      {
+        replacements: { tenantId, thirtyDaysAgo },
+        type: QueryTypes.SELECT,
+      }
+    )
+
+    // Segments avec le plus d'opportunités
+    const segmentsWithOpportunities = await sequelize.query(
+      `
+      SELECT 
+        s.id,
+        s.name,
+        s."contactCount",
+        COUNT(o.id) as "opportunityCount",
+        COALESCE(SUM(o.value), 0) as "totalValue"
+      FROM segments s
+      INNER JOIN contact_segments cs ON s.id = cs."segmentId"
+      INNER JOIN contacts c ON cs."contactId" = c.id
+      INNER JOIN opportunities o ON c.id = o."contactId"
+      WHERE s."tenantId" = :tenantId 
+        AND o."tenantId" = :tenantId
+      GROUP BY s.id, s.name, s."contactCount"
+      ORDER BY COALESCE(SUM(o.value), 0) DESC
+      LIMIT 5
+    `,
+      {
+        replacements: { tenantId },
+        type: QueryTypes.SELECT,
+      }
+    )
+
+    // Segments avec le plus de devis
+    const segmentsWithQuotes = await sequelize.query(
+      `
+      SELECT 
+        s.id,
+        s.name,
+        s."contactCount",
+        COUNT(q.id) as "quoteCount",
+        COALESCE(SUM(q."totalAmount"), 0) as "totalAmount"
+      FROM segments s
+      INNER JOIN contact_segments cs ON s.id = cs."segmentId"
+      INNER JOIN contacts c ON cs."contactId" = c.id
+      INNER JOIN quotes q ON c.id = q."contactId"
+      WHERE s."tenantId" = :tenantId 
+        AND q."tenantId" = :tenantId
+      GROUP BY s.id, s.name, s."contactCount"
+      ORDER BY COALESCE(SUM(q."totalAmount"), 0) DESC
+      LIMIT 5
+    `,
+      {
+        replacements: { tenantId },
+        type: QueryTypes.SELECT,
+      }
+    )
+
+    // Évolution des segments (création par mois)
+    const monthlySegmentGrowth = await Segment.findAll({
+      attributes: [
+        [
+          sequelize.fn("DATE_TRUNC", "month", sequelize.col("Segment.createdAt")),
+          "month",
+        ],
+        [sequelize.fn("COUNT", sequelize.col("Segment.id")), "count"],
+      ],
+      where: {
+        tenantId,
+        createdAt: {
+          [Op.gte]: new Date(now.getFullYear(), now.getMonth() - 5, 1),
+        },
+      },
+      group: [sequelize.fn("DATE_TRUNC", "month", sequelize.col("Segment.createdAt"))],
+      order: [
+        [sequelize.fn("DATE_TRUNC", "month", sequelize.col("Segment.createdAt")), "ASC"],
+      ],
+      raw: true,
+    })
+
+    // Taux d'engagement des segments (contacts avec activités récentes)
+    const segmentEngagement = await sequelize.query(
+      `
+      SELECT 
+        s.id,
+        s.name,
+        s."contactCount",
+        COUNT(DISTINCT c.id) as "engagedContacts"
+      FROM segments s
+      INNER JOIN contact_segments cs ON s.id = cs."segmentId"
+      INNER JOIN contacts c ON cs."contactId" = c.id
+      INNER JOIN activities a ON c.id = a."contactId"
+      WHERE s."tenantId" = :tenantId 
+        AND a."tenantId" = :tenantId 
+        AND a."createdAt" >= :thirtyDaysAgo
+      GROUP BY s.id, s.name, s."contactCount"
+      ORDER BY COUNT(DISTINCT c.id) DESC
+      LIMIT 10
+    `,
+      {
+        replacements: { tenantId, thirtyDaysAgo },
+        type: QueryTypes.SELECT,
+      }
+    )
+
+    // Calcul des taux d'engagement
+    const engagementRates = segmentEngagement.map((segment: any) => ({
+      ...segment,
+      engagementRate:
+        segment.contactCount > 0
+          ? Math.round((segment.engagedContacts / segment.contactCount) * 100 * 100) / 100
+          : 0,
+    }))
+
+    // Segments qui nécessitent une évaluation (plus de 7 jours)
+    const segmentsNeedingEvaluation = await Segment.count({
+      where: {
+        tenantId,
+        isDynamic: true,
+        [Op.or]: [
+          {
+            lastEvaluatedAt: {
+              [Op.lt]: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+            },
+          },
+          { lastEvaluatedAt: null },
+        ],
+      },
+    })
+
+    ctx.body = {
+      overview: {
+        totalSegments,
+        dynamicSegments,
+        manualSegments,
+        totalContactsInSegments,
+        recentlyEvaluatedSegments,
+        segmentsNeedingEvaluation,
+      },
+      topSegments,
+      segmentsWithRecentActivity,
+      segmentsWithOpportunities,
+      segmentsWithQuotes,
+      monthlySegmentGrowth,
+      engagementRates,
+      performance: {
+        averageContactsPerSegment:
+          totalSegments > 0
+            ? Math.round((totalContactsInSegments / totalSegments) * 100) / 100
+            : 0,
+        segmentsWithActivity: segmentsWithRecentActivity.length,
+        segmentsWithOpportunities: segmentsWithOpportunities.length,
+        segmentsWithQuotes: segmentsWithQuotes.length,
+      },
+    }
   } catch (error: unknown) {
     throw error
   }
