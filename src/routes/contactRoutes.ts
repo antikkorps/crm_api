@@ -4,6 +4,7 @@ import {
   deleteContact,
   getAllContacts,
   getContactById,
+  getContactStats,
   getContactsByCompany,
   getContactsByTenant,
   updateContact,
@@ -12,6 +13,9 @@ import { checkPermission } from "../middlewares/roleMiddleware"
 import { protectCrudRoutes } from "../utils/routeProtection"
 
 const router = new Router({ prefix: "/api/contacts" })
+
+// Route pour les statistiques
+router.get("/stats", checkPermission("contacts", "read"), getContactStats)
 
 // Protection des routes CRUD principales
 protectCrudRoutes(router, "contacts", {

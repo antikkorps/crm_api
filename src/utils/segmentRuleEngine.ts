@@ -2,10 +2,12 @@ import { Op } from "sequelize"
 import { Contact } from "../models"
 
 /**
- * Types pour le moteur de règles de segmentation
+ * Types pour les règles de segmentation
  */
+
+// Condition simple : un champ, un opérateur, une valeur
 export interface SimpleCondition {
-  field: string
+  field: string // ex: "firstName", "email", "statusId"
   operator:
     | "equals"
     | "notEquals"
@@ -15,23 +17,81 @@ export interface SimpleCondition {
     | "endsWith"
     | "greaterThan"
     | "lessThan"
-  value: any
+  value: any // ex: "John", "gmail.com", "ACTIVE"
 }
 
+// Condition complexe : groupe de conditions avec AND ou OR
 export interface ComplexCondition {
   operator: "AND" | "OR"
-  conditions: (SimpleCondition | ComplexCondition)[]
+  conditions: (SimpleCondition | ComplexCondition)[] // Array de conditions (peut être imbriqué)
 }
 
-export type SegmentRule = SimpleCondition | ComplexCondition
+export type SegmentRule =
+  | SimpleCondition
+  | ComplexCondition
+  | (SimpleCondition | ComplexCondition)[]
+
+/**
+ * Exemples de règles valides :
+ *
+ * // Condition simple
+ * {
+ *   field: "firstName",
+ *   operator: "contains",
+ *   value: "John"
+ * }
+ *
+ * // Condition complexe avec AND
+ * {
+ *   operator: "AND",
+ *   conditions: [
+ *     { field: "firstName", operator: "contains", value: "John" },
+ *     { field: "email", operator: "contains", value: "gmail.com" }
+ *   ]
+ * }
+ *
+ * // Condition complexe avec OR
+ * {
+ *   operator: "OR",
+ *   conditions: [
+ *     { field: "statusId", operator: "equals", value: "ACTIVE" },
+ *     { field: "statusId", operator: "equals", value: "PENDING" }
+ *   ]
+ * }
+ */
 
 /**
  * Convertit une règle de segmentation en condition Sequelize pour les requêtes
  */
 export function buildSequelizeQuery(rule: SegmentRule): any {
+  // Validation de la règle
+  if (!rule) {
+    throw new Error("Rule is required")
+  }
+
+  // Gestion spéciale : si c'est un tableau, le convertir en condition AND
+  if (Array.isArray(rule)) {
+    if (rule.length === 0) {
+      throw new Error("Rule array cannot be empty")
+    }
+    if (rule.length === 1) {
+      // Si un seul élément, traiter comme une condition simple
+      return buildSequelizeQuery(rule[0])
+    }
+    // Sinon, convertir en condition AND
+    return buildSequelizeQuery({
+      operator: "AND",
+      conditions: rule,
+    })
+  }
+
   // Cas de base : une condition simple
   if ("field" in rule) {
     const { field, operator, value } = rule
+
+    if (!field || !operator) {
+      throw new Error("Invalid simple condition: field and operator are required")
+    }
 
     switch (operator) {
       case "equals":
@@ -56,21 +116,48 @@ export function buildSequelizeQuery(rule: SegmentRule): any {
   }
 
   // Cas récursif : un groupe AND ou OR
-  const { operator, conditions } = rule
-  const clauseOperator = operator === "AND" ? Op.and : Op.or
+  if ("operator" in rule && "conditions" in rule) {
+    const { operator, conditions } = rule
 
-  return {
-    [clauseOperator]: conditions.map((condition) => buildSequelizeQuery(condition)),
+    if (!operator || !conditions || !Array.isArray(conditions)) {
+      throw new Error(
+        "Invalid complex condition: operator and conditions array are required"
+      )
+    }
+
+    if (conditions.length === 0) {
+      throw new Error("Complex condition must have at least one condition")
+    }
+
+    const clauseOperator = operator === "AND" ? Op.and : Op.or
+
+    return {
+      [clauseOperator]: conditions.map((condition) => buildSequelizeQuery(condition)),
+    }
   }
+
+  throw new Error(
+    "Invalid rule format: must be either a simple condition, complex condition, or array of conditions"
+  )
 }
 
 /**
  * Évalue une règle pour un contact donné
  */
 export function evaluateRule(contact: any, rule: SegmentRule): boolean {
+  // Validation de la règle
+  if (!rule) {
+    return false
+  }
+
   // Cas de base : une condition simple
   if ("field" in rule) {
     const { field, operator, value } = rule
+
+    if (!field || !operator) {
+      return false
+    }
+
     const contactValue = contact[field]
 
     if (contactValue === undefined || contactValue === null) {
@@ -100,13 +187,26 @@ export function evaluateRule(contact: any, rule: SegmentRule): boolean {
   }
 
   // Cas récursif : un groupe AND ou OR
-  const { operator, conditions } = rule
+  if ("operator" in rule && "conditions" in rule) {
+    const { operator, conditions } = rule
 
-  if (operator === "AND") {
-    return conditions.every((condition) => evaluateRule(contact, condition))
-  } else {
-    return conditions.some((condition) => evaluateRule(contact, condition))
+    if (
+      !operator ||
+      !conditions ||
+      !Array.isArray(conditions) ||
+      conditions.length === 0
+    ) {
+      return false
+    }
+
+    if (operator === "AND") {
+      return conditions.every((condition) => evaluateRule(contact, condition))
+    } else {
+      return conditions.some((condition) => evaluateRule(contact, condition))
+    }
   }
+
+  return false
 }
 
 /**

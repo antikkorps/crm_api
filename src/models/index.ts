@@ -80,6 +80,8 @@ ContactModel.belongsTo(CompanyModel, { as: "company", foreignKey: "companyId" })
 ContactModel.belongsTo(UserModel, { as: "assignedTo", foreignKey: "assignedToId" })
 ContactModel.hasMany(ActivityModel, { foreignKey: "contactId" })
 ContactModel.hasMany(ReminderModel, { foreignKey: "contactId" })
+ContactModel.hasMany(OpportunityModel, { foreignKey: "contactId" })
+ContactModel.hasMany(QuoteModel, { foreignKey: "contactId" })
 ContactModel.belongsToMany(SegmentModel, {
   through: ContactSegmentModel,
   foreignKey: "contactId",
@@ -122,6 +124,10 @@ SegmentModel.belongsToMany(ContactModel, {
   foreignKey: "segmentId",
   otherKey: "contactId",
 })
+
+// Relations ContactSegment (table de liaison)
+ContactSegmentModel.belongsTo(SegmentModel, { foreignKey: "segmentId" })
+ContactSegmentModel.belongsTo(ContactModel, { foreignKey: "contactId" })
 
 // Relations Reminder
 ReminderModel.belongsTo(TenantModel, { foreignKey: "tenantId" })

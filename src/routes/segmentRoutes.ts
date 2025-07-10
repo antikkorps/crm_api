@@ -7,12 +7,15 @@ import {
   getAllSegments,
   getSegmentById,
   getSegmentContacts,
+  getSegmentStats,
   removeContactFromSegment,
   updateSegment,
 } from "../controllers/segmentController"
 import { checkPermission } from "../middlewares/roleMiddleware"
 
 const router = new Router({ prefix: "/api/segments" })
+// Route pour les statistiques
+router.get("/stats", checkPermission("segments", "read"), getSegmentStats)
 
 // Routes principales pour les segments
 router.get("/", checkPermission("segments", "read"), getAllSegments)
