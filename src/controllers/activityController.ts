@@ -158,6 +158,131 @@ export const getMyTasks = async (ctx: Context) => {
 }
 
 /**
+ * Récupère toutes les activités de l'utilisateur connecté
+ * (créées par lui OU assignées à lui) avec filtres optionnels
+ */
+export const getMyActivities = async (ctx: Context) => {
+  try {
+    const whereClause: any = {
+      tenantId: ctx.state.user.tenantId,
+      [Op.or]: [{ createdById: ctx.state.user.id }, { assignedToId: ctx.state.user.id }],
+    }
+
+    // Filtrage par contact
+    if (ctx.query.contactId) {
+      whereClause.contactId = ctx.query.contactId
+    }
+
+    // Filtrage par entreprise
+    if (ctx.query.companyId) {
+      whereClause.companyId = ctx.query.companyId
+    }
+
+    // Filtrage par types si le paramètre est fourni
+    if (ctx.query.types) {
+      const types = (ctx.query.types as string)
+        .split(",")
+        .map((type) => type.trim().toUpperCase())
+      whereClause.type = { [Op.in]: types }
+    }
+
+    // Filtrage par dates
+    if (ctx.query.startDate) {
+      whereClause.createdAt = { [Op.gte]: new Date(ctx.query.startDate as string) }
+    }
+    if (ctx.query.endDate) {
+      const endDate = new Date(ctx.query.endDate as string)
+      endDate.setHours(23, 59, 59, 999) // Fin de journée
+      whereClause.createdAt = {
+        ...whereClause.createdAt,
+        [Op.lte]: endDate,
+      }
+    }
+
+    // Filtrage par priorité
+    if (ctx.query.priority) {
+      const priorities = (ctx.query.priority as string)
+        .split(",")
+        .map((priority) => priority.trim().toUpperCase())
+      whereClause.priority = { [Op.in]: priorities }
+    }
+
+    // Filtrage par statut générique
+    if (ctx.query.status) {
+      const statuses = (ctx.query.status as string)
+        .split(",")
+        .map((status) => status.trim().toUpperCase())
+      whereClause.status = { [Op.in]: statuses }
+    }
+
+    // Filtrage par statut de tâche
+    if (ctx.query.taskStatus) {
+      const taskStatuses = (ctx.query.taskStatus as string)
+        .split(",")
+        .map((status) => status.trim().toUpperCase())
+      whereClause.taskStatus = { [Op.in]: taskStatuses }
+    }
+
+    // Filtrage par résultat d'appel
+    if (ctx.query.callOutcome) {
+      const callOutcomes = (ctx.query.callOutcome as string)
+        .split(",")
+        .map((outcome) => outcome.trim().toUpperCase())
+      whereClause.callOutcome = { [Op.in]: callOutcomes }
+    }
+
+    // Filtrage par statut d'email
+    if (ctx.query.emailStatus) {
+      const emailStatuses = (ctx.query.emailStatus as string)
+        .split(",")
+        .map((status) => status.trim().toUpperCase())
+      whereClause.emailStatus = { [Op.in]: emailStatuses }
+    }
+
+    // Appliquer les filtres de progression (uniquement pour les tâches)
+    applyProgressFilters(whereClause, ctx)
+
+    const result = await paginatedQuery(Activity, ctx, {
+      include: [
+        { model: User, as: "createdBy", attributes: { exclude: ["password"] } },
+        { model: User, as: "assignedTo", attributes: { exclude: ["password"] } },
+        { model: Contact },
+        { model: Company },
+      ],
+      where: whereClause,
+      order: [
+        // Priorité d'abord pour les tâches - HIGH en premier, puis MEDIUM, puis LOW
+        [
+          sequelize.literal(`CASE 
+          WHEN "type" = 'TASK' AND "priority" = 'HIGH' THEN 1 
+          WHEN "type" = 'TASK' AND "priority" = 'MEDIUM' THEN 2 
+          WHEN "type" = 'TASK' AND "priority" = 'LOW' THEN 3
+          ELSE 4
+        END`),
+          "ASC",
+        ],
+        // Ensuite par statut pour les tâches - PENDING et IN_PROGRESS en premier
+        [
+          sequelize.literal(`CASE 
+          WHEN "type" = 'TASK' AND "taskStatus" = 'PENDING' THEN 1 
+          WHEN "type" = 'TASK' AND "taskStatus" = 'IN_PROGRESS' THEN 2
+          WHEN "type" = 'TASK' AND "taskStatus" = 'COMPLETED' THEN 3
+          ELSE 4
+        END`),
+          "ASC",
+        ],
+        // Enfin par date de création, les plus récentes en premier
+        ["createdAt", "DESC"],
+      ],
+    })
+
+    ctx.body = result
+  } catch (error: unknown) {
+    throw error
+  }
+}
+
+/**
  * Récupère une activité par son ID
  */
 export const getActivityById = async (ctx: Context) => {
