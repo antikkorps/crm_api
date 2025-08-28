@@ -8,6 +8,7 @@ import {
   getSegmentById,
   getSegmentContacts,
   getSegmentStats,
+  previewSegmentRules,
   removeContactFromSegment,
   updateSegment,
 } from "../controllers/segmentController"
@@ -16,6 +17,8 @@ import { checkPermission } from "../middlewares/roleMiddleware"
 const router = new Router({ prefix: "/api/segments" })
 // Route pour les statistiques
 router.get("/stats", checkPermission("segments", "read"), getSegmentStats)
+// Route pour prévisualiser les règles de segment
+router.post("/preview", checkPermission("segments", "read"), previewSegmentRules)
 
 // Routes principales pour les segments
 router.get("/", checkPermission("segments", "read"), getAllSegments)
