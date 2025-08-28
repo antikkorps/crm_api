@@ -1,9 +1,96 @@
 import { Context } from "koa"
-import { Op, QueryTypes } from "sequelize"
-import { Contact, ContactSegment, Segment, User, sequelize } from "../models"
+import { Op, QueryTypes, WhereOptions } from "sequelize"
+import { Contact, ContactSegment, Segment, User, sequelize, Company } from "../models"
 import { BadRequestError, NotFoundError } from "../utils/errors"
 import { paginatedQuery } from "../utils/pagination"
 import { updateSegmentMembers } from "../utils/segmentRuleEngine"
+
+/**
+ * Exécute des règles de segment pour prévisualisation
+ */
+const executeRulesForPreview = async (tenantId: string, rules: any): Promise<any[]> => {
+  const buildWhereCondition = (rule: any): WhereOptions => {
+    const { field, operator, value } = rule
+    
+    switch (operator) {
+      case "equals":
+        return { [field]: value }
+      case "notEquals":
+        return { [field]: { [Op.ne]: value } }
+      case "contains":
+        return { [field]: { [Op.iLike]: `%${value}%` } }
+      case "notContains":
+        return { [field]: { [Op.notILike]: `%${value}%` } }
+      case "startsWith":
+        return { [field]: { [Op.iLike]: `${value}%` } }
+      case "endsWith":
+        return { [field]: { [Op.iLike]: `%${value}` } }
+      default:
+        throw new BadRequestError(`Unsupported operator: ${operator}`)
+    }
+  }
+
+  const buildComplexCondition = (complexRule: any): WhereOptions => {
+    const { operator, conditions } = complexRule
+    
+    if (!Array.isArray(conditions) || conditions.length === 0) {
+      throw new BadRequestError("Complex rule must have conditions array")
+    }
+
+    const whereConditions = conditions.map((condition: any) => {
+      if ("field" in condition) {
+        return buildWhereCondition(condition)
+      } else if ("operator" in condition && "conditions" in condition) {
+        return buildComplexCondition(condition)
+      } else {
+        throw new BadRequestError("Invalid condition format")
+      }
+    })
+
+    if (operator === "AND") {
+      return { [Op.and]: whereConditions }
+    } else if (operator === "OR") {
+      return { [Op.or]: whereConditions }
+    } else {
+      throw new BadRequestError(`Unsupported complex operator: ${operator}`)
+    }
+  }
+
+  let whereCondition: WhereOptions
+  if ("field" in rules) {
+    whereCondition = buildWhereCondition(rules)
+  } else if ("operator" in rules && "conditions" in rules) {
+    whereCondition = buildComplexCondition(rules)
+  } else {
+    throw new BadRequestError("Invalid rule format")
+  }
+
+  whereCondition = {
+    ...whereCondition,
+    tenantId
+  }
+
+  const contacts = await Contact.findAll({
+    where: whereCondition,
+    include: [
+      {
+        model: User,
+        as: "assignedTo",
+        attributes: ["id", "firstName", "lastName"]
+      },
+      {
+        model: Company,
+        as: "company",
+        attributes: ["id", "name"]
+      }
+    ],
+    attributes: ["id", "firstName", "lastName", "email"],
+    limit: 1000,
+    order: [["createdAt", "DESC"]]
+  })
+
+  return contacts
+}
 
 /**
  * Récupère tous les segments d'un tenant
@@ -617,5 +704,117 @@ export const getSegmentStats = async (ctx: Context) => {
     }
   } catch (error: unknown) {
     throw error
+  }
+}
+
+/**
+ * Prévisualise les résultats d'une règle de segment
+ */
+export const previewSegmentRules = async (ctx: Context) => {
+  try {
+    const { rules } = (ctx.request as any).body
+
+    if (!rules) {
+      throw new BadRequestError("Rules are required")
+    }
+
+    // LE PROBLÈME EST ICI: rules est un array, pas un objet
+    // Le frontend envoie { rules: [rule] }, donc rules[0] est l'objet rule
+
+    let ruleToProcess: any
+
+    if (Array.isArray(rules)) {
+      if (rules.length === 0) {
+        ctx.body = {
+          contactCount: 0,
+          sampleContacts: [],
+          isValid: false,
+          errors: ["No rules provided"]
+        }
+        return
+      } else if (rules.length === 1) {
+        // Un seul rule dans l'array
+        ruleToProcess = rules[0]
+      } else {
+        // Plusieurs rules, on les combine avec AND
+        ruleToProcess = {
+          operator: "AND",
+          conditions: rules
+        }
+      }
+    } else {
+      // rules est déjà un objet (rétrocompatibilité)
+      ruleToProcess = rules
+    }
+
+    // Validation basique des règles (utilise ruleToProcess au lieu de rules)
+    if (typeof ruleToProcess !== "object" || ruleToProcess === null) {
+      throw new BadRequestError("Invalid rules format: rules must be an object")
+    }
+
+    // Vérifier si c'est une condition simple
+    if ("field" in ruleToProcess) {
+      const simpleRule = ruleToProcess as any
+      if (!simpleRule.field || !simpleRule.operator) {
+        ctx.body = {
+          contactCount: 0,
+          sampleContacts: [],
+          isValid: false,
+          errors: ["Invalid simple rule: field and operator are required"]
+        }
+        return
+      }
+    }
+    // Vérifier si c'est une condition complexe
+    else if ("operator" in ruleToProcess && "conditions" in ruleToProcess) {
+      const complexRule = ruleToProcess as any
+      if (
+        !complexRule.operator ||
+        !Array.isArray(complexRule.conditions) ||
+        complexRule.conditions.length === 0
+      ) {
+        ctx.body = {
+          contactCount: 0,
+          sampleContacts: [],
+          isValid: false,
+          errors: ["Invalid complex rule: operator and non-empty conditions array are required"]
+        }
+        return
+      }
+    } else {
+      ctx.body = {
+        contactCount: 0,
+        sampleContacts: [],
+        isValid: false,
+        errors: ["Invalid rule format: must be either a simple condition or a complex condition"]
+      }
+      return
+    }
+
+    // Exécuter les règles pour la prévisualisation (utilise ruleToProcess)
+    const contacts = await executeRulesForPreview(ctx.state.user.tenantId, ruleToProcess)
+    
+    // Limiter les échantillons à 5 contacts
+    const sampleContacts = contacts.slice(0, 5).map((contact: any) => ({
+      id: contact.id,
+      firstName: contact.firstName,
+      lastName: contact.lastName,
+      email: contact.email,
+      company: contact.company ? { name: contact.company.name } : undefined
+    }))
+
+    ctx.body = {
+      contactCount: contacts.length,
+      sampleContacts,
+      isValid: true
+    }
+  } catch (error: any) {
+    // En cas d'erreur, retourner un résultat invalide avec le message d'erreur
+    ctx.body = {
+      contactCount: 0,
+      sampleContacts: [],
+      isValid: false,
+      errors: [error.message || "Unknown error occurred"]
+    }
   }
 }
