@@ -4,6 +4,7 @@ import {
   Activity,
   Company,
   Contact,
+  ContactSegment,
   Opportunity,
   Quote,
   sequelize,
@@ -420,6 +421,56 @@ export const getContactStats = async (ctx: Context) => {
         withWonOpportunities: contactsWithWonOpportunities,
       },
     }
+  } catch (error: unknown) {
+    throw error
+  }
+}
+
+export const searchAvailableContacts = async (ctx: Context) => {
+  try {
+    const { q, name, search, excludeSegment, excludeFromSegment } = ctx.query
+    const tenantId = ctx.state.user.tenantId
+
+    // Accepter différents paramètres pour la recherche (q, name, search)
+    const query = q || name || search
+    const segmentToExclude = excludeSegment || excludeFromSegment
+
+    let whereCondition: any = { tenantId }
+
+    // Si une requête de recherche est fournie
+    if (query && typeof query === "string" && query.trim().length > 0) {
+      whereCondition[Op.or] = [
+        { firstName: { [Op.iLike]: `%${query}%` } },
+        { lastName: { [Op.iLike]: `%${query}%` } },
+        { email: { [Op.iLike]: `%${query}%` } },
+      ]
+    }
+
+    // Si on veut exclure les contacts d'un segment spécifique
+    if (segmentToExclude) {
+      const contactsInSegment = await ContactSegment.findAll({
+        where: { segmentId: segmentToExclude },
+        attributes: ["contactId"],
+      })
+      
+      const excludedContactIds = contactsInSegment.map((cs: any) => cs.contactId)
+      
+      if (excludedContactIds.length > 0) {
+        whereCondition.id = { [Op.notIn]: excludedContactIds }
+      }
+    }
+
+    const result = await paginatedQuery(Contact, ctx, {
+      where: whereCondition,
+      include: [
+        { model: Company, as: "company" },
+        { model: Status },
+        { model: User, as: "assignedTo" },
+      ],
+      order: [["firstName", "ASC"], ["lastName", "ASC"]],
+    })
+
+    ctx.body = result
   } catch (error: unknown) {
     throw error
   }

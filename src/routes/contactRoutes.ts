@@ -7,6 +7,7 @@ import {
   getContactStats,
   getContactsByCompany,
   getContactsByTenant,
+  searchAvailableContacts,
   updateContact,
 } from "../controllers/contactController"
 import { checkPermission } from "../middlewares/roleMiddleware"
@@ -16,6 +17,9 @@ const router = new Router({ prefix: "/api/contacts" })
 
 // Route pour les statistiques
 router.get("/stats", checkPermission("contacts", "read"), getContactStats)
+
+// Route pour rechercher les contacts disponibles (non inclus dans un segment)
+router.get("/search", checkPermission("contacts", "read"), searchAvailableContacts)
 
 // Protection des routes CRUD principales
 protectCrudRoutes(router, "contacts", {
