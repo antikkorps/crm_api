@@ -1,6 +1,6 @@
 import { Context } from "koa"
 import { Op, QueryTypes, WhereOptions } from "sequelize"
-import { Contact, ContactSegment, Segment, User, sequelize, Company } from "../models"
+import { Company, Contact, ContactSegment, Segment, Status, User, sequelize } from "../models"
 import { BadRequestError, NotFoundError } from "../utils/errors"
 import { paginatedQuery } from "../utils/pagination"
 import { updateSegmentMembers } from "../utils/segmentRuleEngine"
@@ -11,7 +11,7 @@ import { updateSegmentMembers } from "../utils/segmentRuleEngine"
 const executeRulesForPreview = async (tenantId: string, rules: any): Promise<any[]> => {
   const buildWhereCondition = (rule: any): WhereOptions => {
     const { field, operator, value } = rule
-    
+
     switch (operator) {
       case "equals":
         return { [field]: value }
@@ -32,7 +32,7 @@ const executeRulesForPreview = async (tenantId: string, rules: any): Promise<any
 
   const buildComplexCondition = (complexRule: any): WhereOptions => {
     const { operator, conditions } = complexRule
-    
+
     if (!Array.isArray(conditions) || conditions.length === 0) {
       throw new BadRequestError("Complex rule must have conditions array")
     }
@@ -67,7 +67,7 @@ const executeRulesForPreview = async (tenantId: string, rules: any): Promise<any
 
   whereCondition = {
     ...whereCondition,
-    tenantId
+    tenantId,
   }
 
   const contacts = await Contact.findAll({
@@ -76,17 +76,17 @@ const executeRulesForPreview = async (tenantId: string, rules: any): Promise<any
       {
         model: User,
         as: "assignedTo",
-        attributes: ["id", "firstName", "lastName"]
+        attributes: ["id", "firstName", "lastName"],
       },
       {
         model: Company,
         as: "company",
-        attributes: ["id", "name"]
-      }
+        attributes: ["id", "name"],
+      },
     ],
     attributes: ["id", "firstName", "lastName", "email"],
     limit: 1000,
-    order: [["createdAt", "DESC"]]
+    order: [["createdAt", "DESC"]],
   })
 
   return contacts
@@ -150,6 +150,10 @@ export const getSegmentContacts = async (ctx: Context) => {
       throw new NotFoundError(`Segment with ID ${ctx.params.id} not found`)
     }
 
+    // Récupérer les paramètres de filtrage
+    const { name, q, search } = ctx.query
+    const searchQuery = name || q || search
+
     // Récupérer les IDs des contacts du segment
     const contactSegments = await ContactSegment.findAll({
       where: { segmentId: ctx.params.id },
@@ -174,13 +178,53 @@ export const getSegmentContacts = async (ctx: Context) => {
       return
     }
 
-    // Récupérer les contacts paginés
+    // Construire la condition WHERE avec filtrage optionnel
+    let whereCondition: any = {
+      id: { [Op.in]: contactIds },
+      tenantId: ctx.state.user.tenantId,
+    }
+
+    // Ajouter le filtrage par nom si fourni
+    if (searchQuery && typeof searchQuery === "string" && searchQuery.trim().length > 0) {
+      whereCondition[Op.and] = [
+        whereCondition,
+        {
+          [Op.or]: [
+            { firstName: { [Op.iLike]: `%${searchQuery}%` } },
+            { lastName: { [Op.iLike]: `%${searchQuery}%` } },
+            { email: { [Op.iLike]: `%${searchQuery}%` } },
+          ],
+        },
+      ]
+      // Simplifier la condition
+      delete whereCondition.id
+      delete whereCondition.tenantId
+      whereCondition = {
+        [Op.and]: [
+          {
+            id: { [Op.in]: contactIds },
+            tenantId: ctx.state.user.tenantId,
+          },
+          {
+            [Op.or]: [
+              { firstName: { [Op.iLike]: `%${searchQuery}%` } },
+              { lastName: { [Op.iLike]: `%${searchQuery}%` } },
+              { email: { [Op.iLike]: `%${searchQuery}%` } },
+            ],
+          },
+        ],
+      }
+    }
+
+    // Récupérer les contacts paginés avec filtrage
     const result = await paginatedQuery(Contact, ctx, {
-      where: {
-        id: { [Op.in]: contactIds },
-        tenantId: ctx.state.user.tenantId,
-      },
-      include: [{ model: User, as: "assignedTo" }],
+      where: whereCondition,
+      include: [
+        { model: Company, as: "company" },
+        { model: Status },
+        { model: User, as: "assignedTo" },
+      ],
+      order: [["firstName", "ASC"], ["lastName", "ASC"]],
     })
 
     ctx.body = result
@@ -475,6 +519,93 @@ export const removeContactFromSegment = async (ctx: Context) => {
 }
 
 /**
+ * Ajoute plusieurs contacts à un segment
+ */
+export const addContactsToSegment = async (ctx: Context) => {
+  try {
+    const { segmentId } = ctx.params
+    const { contactIds } = (ctx.request as any).body
+
+    if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
+      throw new BadRequestError("contactIds array is required and must not be empty")
+    }
+
+    // Vérifier que le segment existe
+    const segment = await Segment.findByPk(segmentId)
+    if (!segment) {
+      throw new NotFoundError(`Segment with ID ${segmentId} not found`)
+    }
+
+    // Vérifier que tous les contacts existent
+    const contacts = await Contact.findAll({
+      where: {
+        id: { [Op.in]: contactIds },
+        tenantId: ctx.state.user.tenantId,
+      },
+    })
+
+    if (contacts.length !== contactIds.length) {
+      const foundContactIds = contacts.map((c: any) => c.id)
+      const notFoundContactIds = contactIds.filter(
+        (id: string) => !foundContactIds.includes(id)
+      )
+      throw new NotFoundError(`Contacts not found: ${notFoundContactIds.join(", ")}`)
+    }
+
+    // Vérifier quelles relations existent déjà
+    const existingRelations = await ContactSegment.findAll({
+      where: {
+        segmentId,
+        contactId: { [Op.in]: contactIds },
+      },
+    })
+
+    const existingContactIds = existingRelations.map((rel: any) => rel.contactId)
+    const newContactIds = contactIds.filter(
+      (id: string) => !existingContactIds.includes(id)
+    )
+
+    // Créer les nouvelles relations
+    const newRelations = newContactIds.map((contactId: string) => ({
+      segmentId,
+      contactId,
+      isManuallyAdded: true,
+      addedAt: new Date(),
+    }))
+
+    if (newRelations.length > 0) {
+      await ContactSegment.bulkCreate(newRelations)
+
+      // Mettre à jour le compteur du segment
+      await segment.increment("contactCount", { by: newRelations.length })
+    }
+
+    // Mettre à jour les relations existantes pour les marquer comme manuellement ajoutées
+    const relationsToUpdate = existingRelations.filter((rel: any) => !rel.isManuallyAdded)
+    if (relationsToUpdate.length > 0) {
+      await ContactSegment.update(
+        { isManuallyAdded: true },
+        {
+          where: {
+            segmentId,
+            contactId: { [Op.in]: relationsToUpdate.map((rel: any) => rel.contactId) },
+          },
+        }
+      )
+    }
+
+    ctx.body = {
+      message: `${newRelations.length} contacts added to segment, ${relationsToUpdate.length} existing contacts marked as manually added`,
+      added: newRelations.length,
+      updated: relationsToUpdate.length,
+      skipped: existingContactIds.length - relationsToUpdate.length,
+    }
+  } catch (error: unknown) {
+    throw error
+  }
+}
+
+/**
  * Récupère les statistiques des segments
  */
 export const getSegmentStats = async (ctx: Context) => {
@@ -729,7 +860,7 @@ export const previewSegmentRules = async (ctx: Context) => {
           contactCount: 0,
           sampleContacts: [],
           isValid: false,
-          errors: ["No rules provided"]
+          errors: ["No rules provided"],
         }
         return
       } else if (rules.length === 1) {
@@ -739,7 +870,7 @@ export const previewSegmentRules = async (ctx: Context) => {
         // Plusieurs rules, on les combine avec AND
         ruleToProcess = {
           operator: "AND",
-          conditions: rules
+          conditions: rules,
         }
       }
     } else {
@@ -760,7 +891,7 @@ export const previewSegmentRules = async (ctx: Context) => {
           contactCount: 0,
           sampleContacts: [],
           isValid: false,
-          errors: ["Invalid simple rule: field and operator are required"]
+          errors: ["Invalid simple rule: field and operator are required"],
         }
         return
       }
@@ -777,7 +908,9 @@ export const previewSegmentRules = async (ctx: Context) => {
           contactCount: 0,
           sampleContacts: [],
           isValid: false,
-          errors: ["Invalid complex rule: operator and non-empty conditions array are required"]
+          errors: [
+            "Invalid complex rule: operator and non-empty conditions array are required",
+          ],
         }
         return
       }
@@ -786,27 +919,29 @@ export const previewSegmentRules = async (ctx: Context) => {
         contactCount: 0,
         sampleContacts: [],
         isValid: false,
-        errors: ["Invalid rule format: must be either a simple condition or a complex condition"]
+        errors: [
+          "Invalid rule format: must be either a simple condition or a complex condition",
+        ],
       }
       return
     }
 
     // Exécuter les règles pour la prévisualisation (utilise ruleToProcess)
     const contacts = await executeRulesForPreview(ctx.state.user.tenantId, ruleToProcess)
-    
+
     // Limiter les échantillons à 5 contacts
     const sampleContacts = contacts.slice(0, 5).map((contact: any) => ({
       id: contact.id,
       firstName: contact.firstName,
       lastName: contact.lastName,
       email: contact.email,
-      company: contact.company ? { name: contact.company.name } : undefined
+      company: contact.company ? { name: contact.company.name } : undefined,
     }))
 
     ctx.body = {
       contactCount: contacts.length,
       sampleContacts,
-      isValid: true
+      isValid: true,
     }
   } catch (error: any) {
     // En cas d'erreur, retourner un résultat invalide avec le message d'erreur
@@ -814,7 +949,191 @@ export const previewSegmentRules = async (ctx: Context) => {
       contactCount: 0,
       sampleContacts: [],
       isValid: false,
-      errors: [error.message || "Unknown error occurred"]
+      errors: [error.message || "Unknown error occurred"],
     }
+  }
+}
+
+/**
+ * Exporte les contacts d'un segment
+ */
+export const exportSegmentContacts = async (ctx: Context) => {
+  try {
+    const segment = await Segment.findByPk(ctx.params.id)
+    if (!segment) {
+      throw new NotFoundError(`Segment with ID ${ctx.params.id} not found`)
+    }
+
+    const { format = "csv", includeAll = "false" } = ctx.query
+    const formatString = Array.isArray(format) ? format[0] : format
+    const includeAllColumns = (Array.isArray(includeAll) ? includeAll[0] : includeAll) === "true"
+
+    // Récupérer tous les contacts du segment
+    const contactSegments = await ContactSegment.findAll({
+      where: { segmentId: ctx.params.id },
+      attributes: ["contactId", "isManuallyAdded", "addedAt"],
+    })
+
+    const contactIds = contactSegments.map((cs: any) => cs.contactId)
+
+    if (contactIds.length === 0) {
+      throw new BadRequestError("Segment has no contacts to export")
+    }
+
+    // Récupérer les contacts avec toutes leurs données
+    const contacts = await Contact.findAll({
+      where: {
+        id: { [Op.in]: contactIds },
+        tenantId: ctx.state.user.tenantId,
+      },
+      include: [
+        { model: Company, as: "company" },
+        { model: Status },
+        { model: User, as: "assignedTo" },
+      ],
+      order: [["firstName", "ASC"], ["lastName", "ASC"]],
+    })
+
+    // Créer un map pour les données du segment
+    const segmentDataMap = new Map()
+    contactSegments.forEach((cs: any) => {
+      segmentDataMap.set(cs.contactId, {
+        isManuallyAdded: cs.isManuallyAdded,
+        addedAt: cs.addedAt,
+      })
+    })
+
+    // Préparer les données pour l'export
+    const exportData = contacts.map((contact: any) => {
+      const segmentInfo = segmentDataMap.get(contact.id)
+      const baseData = {
+        id: contact.id,
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        email: contact.email,
+        phone: contact.phone,
+        company: contact.company?.name || "",
+        status: contact.Status?.name || "",
+        assignedTo: contact.assignedTo
+          ? `${contact.assignedTo.firstName} ${contact.assignedTo.lastName}`
+          : "",
+        addedToSegmentAt: segmentInfo?.addedAt?.toISOString() || "",
+        manuallyAdded: segmentInfo?.isManuallyAdded ? "Yes" : "No",
+      }
+
+      if (includeAllColumns) {
+        return {
+          ...baseData,
+          title: contact.title,
+          department: contact.department,
+          website: contact.website,
+          address: contact.address,
+          city: contact.city,
+          country: contact.country,
+          postalCode: contact.postalCode,
+          notes: contact.notes,
+          companyId: contact.companyId,
+          statusId: contact.statusId,
+          assignedToId: contact.assignedToId,
+          tenantId: contact.tenantId,
+          createdAt: contact.createdAt?.toISOString(),
+          updatedAt: contact.updatedAt?.toISOString(),
+        }
+      }
+
+      return baseData
+    })
+
+    const segmentName = segment.get("name") as string
+    const filename = `segment-${segmentName.replace(/[^a-zA-Z0-9]/g, "_")}-${new Date().toISOString().split("T")[0]}`
+
+    // Gérer les différents formats d'export
+    switch (formatString?.toLowerCase()) {
+      case "json":
+        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Disposition", `attachment; filename="${filename}.json"`)
+        ctx.body = {
+          segment: {
+            id: segment.get("id"),
+            name: segmentName,
+            description: segment.get("description"),
+            isDynamic: segment.get("isDynamic"),
+            contactCount: exportData.length,
+            exportedAt: new Date().toISOString(),
+          },
+          contacts: exportData,
+        }
+        break
+
+      case "xlsx":
+        try {
+          const XLSX = require("xlsx")
+          
+          // Créer un nouveau workbook
+          const wb = XLSX.utils.book_new()
+          
+          // Convertir les données en worksheet
+          const ws = XLSX.utils.json_to_sheet(exportData)
+          
+          // Ajouter la worksheet au workbook
+          XLSX.utils.book_append_sheet(wb, ws, "Contacts")
+          
+          // Ajouter une feuille avec les informations du segment
+          const segmentInfo = [{
+            "Segment ID": segment.get("id"),
+            "Segment Name": segmentName,
+            "Description": segment.get("description") || "",
+            "Is Dynamic": segment.get("isDynamic") ? "Yes" : "No",
+            "Contact Count": exportData.length,
+            "Exported At": new Date().toISOString(),
+          }]
+          const segmentWs = XLSX.utils.json_to_sheet(segmentInfo)
+          XLSX.utils.book_append_sheet(wb, segmentWs, "Segment Info")
+          
+          // Générer le buffer XLSX
+          const xlsxBuffer = XLSX.write(wb, { bookType: "xlsx", type: "buffer" })
+          
+          ctx.set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+          ctx.set("Content-Disposition", `attachment; filename="${filename}.xlsx"`)
+          ctx.body = xlsxBuffer
+        } catch (xlsxError) {
+          throw new BadRequestError("Error generating XLSX file. Please ensure xlsx library is installed.")
+        }
+        break
+
+      case "csv":
+      default:
+        if (exportData.length === 0) {
+          ctx.set("Content-Type", "text/csv")
+          ctx.set("Content-Disposition", `attachment; filename="${filename}.csv"`)
+          ctx.body = "No data to export"
+          return
+        }
+
+        // Générer le CSV
+        const headers = Object.keys(exportData[0])
+        const csvRows = [
+          headers.join(","), // En-têtes
+          ...exportData.map((row: any) =>
+            headers.map((header) => {
+              const value = row[header] || ""
+              // Échapper les guillemets et entourer de guillemets si nécessaire
+              if (typeof value === "string" && (value.includes(",") || value.includes('"') || value.includes("\n"))) {
+                return `"${value.replace(/"/g, '""')}"`
+              }
+              return value
+            }).join(",")
+          ),
+        ]
+
+        ctx.set("Content-Type", "text/csv; charset=utf-8")
+        ctx.set("Content-Disposition", `attachment; filename="${filename}.csv"`)
+        // Ajouter BOM pour Excel
+        ctx.body = "\uFEFF" + csvRows.join("\n")
+        break
+    }
+
+  } catch (error: unknown) {
+    throw error
   }
 }
